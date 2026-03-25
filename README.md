@@ -29,9 +29,13 @@ cp apps/web/.env.example apps/web/.env.local
 
 See **`apps/web/.env.example`**. The agent route requires **`OPENAI_API_KEY`** for `POST /api/agent/run`.
 
+Optional Supabase (same project as **Tabletop Studio**): set **`NEXT_PUBLIC_SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (server-only). The app then reads/writes the studio document in Postgres schema **`agent_builder`** (`studio_snapshots`, id **`default`**) instead of the local file. RLS blocks **`anon`** / **`authenticated`**; the service role key bypasses RLS and must never be exposed to the browser. **`POST /api/studio/backup`** uploads JSON to the private Storage bucket **`agent-builder`** and inserts a row in **`agent_builder.studio_artifacts`**. The migration file lives in the Tabletop Studio repo: **`supabase/migrations/20260325195000_agent_builder_schema_and_storage.sql`**.
+
 ## Data / persistence
 
-Locally, the studio API reads and writes JSON under **`apps/web/data/`** (created on first use). When **`VERCEL=1`**, the store file is written under **`/tmp/micro-ui-agent-builder/data`** because Vercel serverless only allows writes in `/tmp` — the previous `cwd/data` path caused **`/api/studio`** to return **500** (persist after seed failed). That `/tmp` data is still **ephemeral** (lost on cold starts, not shared across instances). For durable production storage, use a database, blob, or KV.
+**With Supabase env vars set:** studio state is stored in **`agent_builder.studio_snapshots`** (durable, shared across instances).
+
+**Without Supabase:** the studio API reads and writes JSON under **`apps/web/data/`** (created on first use). When **`VERCEL=1`**, the store file is written under **`/tmp/micro-ui-agent-builder/data`** because Vercel serverless only allows writes in `/tmp`. That `/tmp` data is **ephemeral** (lost on cold starts, not shared across instances).
 
 ## Vercel
 
@@ -41,7 +45,7 @@ Locally, the studio API reads and writes JSON under **`apps/web/data/`** (create
 2. In the [Vercel dashboard](https://vercel.com/new), **Import** the repository.
 3. Set **Root Directory** to **`apps/web`**.
 4. Framework preset: **Next.js**. Leave install/build overrides empty unless you need to change them—the repo’s `vercel.json` supplies the monorepo commands.
-5. Add **Environment variable**: `OPENAI_API_KEY` (Production + Preview as needed).
+5. Add **Environment variables**: `OPENAI_API_KEY` (Production + Preview as needed). For durable studio state, add **`NEXT_PUBLIC_SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (same Tabletop Studio Supabase project; apply migration from that repo if not already applied).
 6. Deploy.
 
 ### Vercel CLI
@@ -83,6 +87,7 @@ The root **`package.json`** includes **`packageManager`** (`pnpm@9.x`) so Vercel
 | Method | Path | Notes |
 |--------|------|--------|
 | GET/PUT | `/api/studio` | Read/write full studio store (Zod-validated on PUT) |
+| POST | `/api/studio/backup` | JSON backup to Storage + `studio_artifacts` (requires Supabase env) |
 | POST | `/api/agent/run` | Streaming chat; body `{ messages, flowId? }` |
 | POST | `/api/agent/approve` | Stub: clears a `pausedRuns` session |
 | POST | `/api/mcp/proxy` | Stub: **501** |

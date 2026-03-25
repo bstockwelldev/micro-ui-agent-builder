@@ -7,6 +7,11 @@ import {
 } from "@repo/shared";
 
 import { getDataDir, getStoreFilePath } from "./paths";
+import { getSupabaseAdmin, isSupabaseStudioEnabled } from "./supabase-admin";
+
+const AGENT_BUILDER_SCHEMA = "agent_builder";
+const STUDIO_SNAPSHOTS_TABLE = "studio_snapshots";
+const DEFAULT_SNAPSHOT_ID = "default";
 
 export function seedStudioStore(): StudioStore {
   const now = new Date().toISOString();
@@ -62,7 +67,7 @@ export function seedStudioStore(): StudioStore {
   };
 }
 
-export async function readStudioStore(): Promise<StudioStore> {
+async function readStudioStoreFromFile(): Promise<StudioStore> {
   const file = getStoreFilePath();
   try {
     const raw = await fs.readFile(file, "utf-8");
@@ -72,7 +77,7 @@ export async function readStudioStore(): Promise<StudioStore> {
     if (err.code === "ENOENT") {
       const seed = seedStudioStore();
       try {
-        await writeStudioStore(seed);
+        await writeStudioStoreToFile(seed);
       } catch (persistErr) {
         console.error(
           "[studio-store] could not persist seed (read-only or quota); returning in-memory seed",
@@ -85,10 +90,68 @@ export async function readStudioStore(): Promise<StudioStore> {
   }
 }
 
-export async function writeStudioStore(store: StudioStore): Promise<void> {
+async function writeStudioStoreToFile(store: StudioStore): Promise<void> {
   const file = getStoreFilePath();
   await fs.mkdir(getDataDir(), { recursive: true });
   await fs.writeFile(file, JSON.stringify(store, null, 2), "utf-8");
+}
+
+async function readStudioStoreFromSupabase(): Promise<StudioStore | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .schema(AGENT_BUILDER_SCHEMA)
+    .from(STUDIO_SNAPSHOTS_TABLE)
+    .select("payload")
+    .eq("id", DEFAULT_SNAPSHOT_ID)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  if (!data?.payload) {
+    return null;
+  }
+  return parseStudioStore(data.payload);
+}
+
+async function writeStudioStoreToSupabase(store: StudioStore): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .schema(AGENT_BUILDER_SCHEMA)
+    .from(STUDIO_SNAPSHOTS_TABLE)
+    .upsert(
+      {
+        id: DEFAULT_SNAPSHOT_ID,
+        payload: store,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function readStudioStore(): Promise<StudioStore> {
+  if (isSupabaseStudioEnabled()) {
+    const fromDb = await readStudioStoreFromSupabase();
+    if (fromDb) {
+      return fromDb;
+    }
+    const seed = seedStudioStore();
+    await writeStudioStoreToSupabase(seed);
+    return seed;
+  }
+  return readStudioStoreFromFile();
+}
+
+export async function writeStudioStore(store: StudioStore): Promise<void> {
+  if (isSupabaseStudioEnabled()) {
+    await writeStudioStoreToSupabase(store);
+    return;
+  }
+  await writeStudioStoreToFile(store);
 }
 
 export function getFlowById(
