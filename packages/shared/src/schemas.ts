@@ -42,7 +42,13 @@ export const toolDefinitionSchema = z.object({
   requiresApproval: z.boolean().optional().default(false),
 });
 
-export type ToolDefinition = z.infer<typeof toolDefinitionSchema>;
+/** Parsed tool row (explicit shape so app `tsc` matches Zod output across zod versions). */
+export type ToolDefinition = {
+  id: string;
+  description: string;
+  parametersJson: string;
+  requiresApproval: boolean;
+};
 
 export const mcpServerConfigSchema = z.object({
   id: z.string().min(1),
@@ -80,12 +86,16 @@ export const studioStoreSchema = z.object({
     .optional(),
 });
 
-export type StudioStore = z.infer<typeof studioStoreSchema>;
+type InferredStudioStore = z.infer<typeof studioStoreSchema>;
+
+export type StudioStore = Omit<InferredStudioStore, "tools"> & {
+  tools: ToolDefinition[];
+};
 
 export function parseFlowDocument(input: unknown): FlowDocument {
   return flowDocumentSchema.parse(input);
 }
 
 export function parseStudioStore(input: unknown): StudioStore {
-  return studioStoreSchema.parse(input);
+  return studioStoreSchema.parse(input) as StudioStore;
 }
