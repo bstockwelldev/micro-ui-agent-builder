@@ -1,0 +1,13 @@
+node_modules
+.next
+.turbo
+.vercel
+dist
+*.tsbuildinfo
+.env
+.env.local
+.env*.local
+apps/web/data/
+.DS_Store
+coverage
+*.log
