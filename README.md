@@ -35,28 +35,36 @@ The studio API reads and writes JSON under **`apps/web/data/`** (created on firs
 
 ## Vercel
 
+`apps/web/vercel.json` sets **`installCommand`** / **`buildCommand`** to run `pnpm install` and `pnpm build` from the **monorepo root** (`cd ../..`), so `@repo/shared` resolves and **pnpm** is used (not `npm` in `apps/web` alone).
+
 1. Push this repo to GitHub (or GitLab / Bitbucket).
 2. In the [Vercel dashboard](https://vercel.com/new), **Import** the repository.
-3. Set **Root Directory** to **`apps/web`** (monorepo).
-4. Framework preset: **Next.js**. Build command defaults are fine; the install step at the repo root should run `pnpm install` from the monorepo (Vercel detects pnpm workspace).
+3. Set **Root Directory** to **`apps/web`**.
+4. Framework preset: **Next.js**. Leave install/build overrides empty unless you need to change them—the repo’s `vercel.json` supplies the monorepo commands.
 5. Add **Environment variable**: `OPENAI_API_KEY` (Production + Preview as needed).
 6. Deploy.
 
-### Vercel CLI (alternative)
+### Vercel CLI
 
-From your machine, with [Vercel CLI](https://vercel.com/docs/cli) installed:
+The CLI uploads **only the directory you run it from**. To include `packages/shared`, run commands from the **repository root** after linking that directory to your Vercel project.
+
+**One-time (dashboard):** open the project → **Settings** → **General** → **Root Directory** → set to **`apps/web`**. Without this, Vercel reads the root `package.json` (no `next`) and the build fails.
 
 ```bash
-cd apps/web
+cd /path/to/micro-ui-agent-builder   # monorepo root
 vercel login
-vercel link    # create new project or link existing; set scope/team as prompted
-vercel env pull   # optional: fetch env into .env.local
-vercel --prod     # production deploy
+vercel link --scope <your-team-slug>   # link this root to the project (Root Directory must be apps/web as above)
+vercel env pull                        # optional
+vercel deploy --scope <your-team-slug> --prod
 ```
 
-For a **new** project, `vercel link` walks you through linking the local directory to a Vercel project. Set **`OPENAI_API_KEY`** in the dashboard or with `vercel env add OPENAI_API_KEY`.
+Non-interactive example:
 
-Ensure the Vercel project **Root Directory** is **`apps/web`** so builds resolve `workspace:*` to `@repo/shared`.
+`vercel deploy --yes --scope brandon-stockwells-projects --prod`
+
+Set **`OPENAI_API_KEY`** in the dashboard or with `vercel env add OPENAI_API_KEY`.
+
+The root **`package.json`** includes **`packageManager`** (`pnpm@9.x`) so Vercel can use pnpm consistently with the lockfile.
 
 ## API overview
 
