@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
+import { StudioPageHeader } from "@/components/studio/studio-page-header";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -11,76 +11,66 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-import type { FlowDocument } from "@repo/shared";
+import { Button } from "@/components/ui/button";
+import { useStudioApi } from "@/hooks/use-studio-api";
 
 export default function FlowsPage() {
-  const [flows, setFlows] = useState<FlowDocument[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/studio");
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        if (!cancelled) setFlows(data.flows ?? []);
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load flows");
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (error) {
-    return (
-      <p className="text-destructive text-sm" role="alert">
-        {error}
-      </p>
-    );
-  }
+  const { data, loading, error, refetch } = useStudioApi();
+  const flows = data?.flows ?? [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Flows</h1>
-        <p className="text-muted-foreground text-sm">
-          Linear flow documents drive system context and model selection for Run.
-        </p>
-      </div>
-      <ul className="grid gap-4 sm:grid-cols-2">
-        {flows.map((flow) => (
-          <li key={flow.id}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{flow.name}</CardTitle>
-                <CardDescription className="line-clamp-2">
-                  {flow.description ?? flow.id}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{flow.steps.length} steps</Badge>
-                <Link
-                  href={`/run?flowId=${encodeURIComponent(flow.id)}`}
-                  className="text-primary text-sm font-medium underline-offset-4 hover:underline"
-                >
-                  Open in Run
-                </Link>
-              </CardContent>
-            </Card>
-          </li>
-        ))}
-      </ul>
-      {flows.length === 0 && (
-        <p className="text-muted-foreground text-sm">
-          No flows yet. Seed data is created on first API access.
-        </p>
-      )}
+      <StudioPageHeader
+        title="Flows"
+        description="Linear flow documents drive system context and model selection for Run."
+        loading={loading}
+        onRefresh={refetch}
+      />
+      {error && !loading ? (
+        <div
+          className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-4"
+          role="alert"
+        >
+          <p className="text-destructive text-sm">{error}</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : null}
+      {!loading && !error ? (
+        <>
+          <ul className="grid gap-4 sm:grid-cols-2">
+            {flows.map((flow) => (
+              <li key={flow.id}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">{flow.name}</CardTitle>
+                    <CardDescription className="line-clamp-2">
+                      {flow.description ?? flow.id}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary">{flow.steps.length} steps</Badge>
+                    <Link
+                      href={`/run?flowId=${encodeURIComponent(flow.id)}`}
+                      className="text-primary text-sm font-medium underline-offset-4 hover:underline"
+                    >
+                      Open in Run
+                    </Link>
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
+          {flows.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No flows in the store. The server seeds a demo flow on first successful
+              read; if this stays empty, check deployment logs for{" "}
+              <code className="text-xs">/api/studio</code> errors.
+            </p>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }

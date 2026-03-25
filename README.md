@@ -31,7 +31,7 @@ See **`apps/web/.env.example`**. The agent route requires **`OPENAI_API_KEY`** f
 
 ## Data / persistence
 
-The studio API reads and writes JSON under **`apps/web/data/`** (created on first use). On **Vercel serverless**, that filesystem is **ephemeral** and not shared across instances. For production, plan an external store (database, blob, KV) or accept dev-only persistence.
+Locally, the studio API reads and writes JSON under **`apps/web/data/`** (created on first use). When **`VERCEL=1`**, the store file is written under **`/tmp/micro-ui-agent-builder/data`** because Vercel serverless only allows writes in `/tmp` — the previous `cwd/data` path caused **`/api/studio`** to return **500** (persist after seed failed). That `/tmp` data is still **ephemeral** (lost on cold starts, not shared across instances). For durable production storage, use a database, blob, or KV.
 
 ## Vercel
 
@@ -49,6 +49,18 @@ The studio API reads and writes JSON under **`apps/web/data/`** (created on firs
 The CLI uploads **only the directory you run it from**. To include `packages/shared`, run commands from the **repository root** after linking that directory to your Vercel project.
 
 **One-time (dashboard):** open the project → **Settings** → **General** → **Root Directory** → set to **`apps/web`**. Without this, Vercel reads the root `package.json` (no `next`) and the build fails.
+
+If the interactive `vercel link` asked **“In which directory is your code located?”** and you chose **`./`**, that is correct for uploading the whole monorepo. It does **not** set the app root on the server. You still need **Root Directory = `apps/web`** in the dashboard (and **Framework Preset = Next.js**). Otherwise Vercel may treat the repo as a static site and fail with **“No Output Directory named `public` found”** after the build.
+
+#### Troubleshooting: `No Output Directory named "public"`
+
+That message means Vercel is **not** using the Next.js builder for `apps/web`. Fix it in the dashboard:
+
+1. **Settings** → **General** → **Root Directory** → **`apps/web`** (Save).
+2. **Framework Preset** → **Next.js** (not “Other” / static).
+3. Under **Build & Development Settings**, clear a wrong **Output Directory** if it was set to `public` manually—Next.js deployments should use the default (no static `public` folder required at repo root).
+
+Redeploy (push a commit or run `vercel deploy --prod` again from the monorepo root).
 
 ```bash
 cd /path/to/micro-ui-agent-builder   # monorepo root

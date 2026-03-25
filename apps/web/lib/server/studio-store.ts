@@ -71,7 +71,14 @@ export async function readStudioStore(): Promise<StudioStore> {
     const err = e as NodeJS.ErrnoException;
     if (err.code === "ENOENT") {
       const seed = seedStudioStore();
-      await writeStudioStore(seed);
+      try {
+        await writeStudioStore(seed);
+      } catch (persistErr) {
+        console.error(
+          "[studio-store] could not persist seed (read-only or quota); returning in-memory seed",
+          persistErr,
+        );
+      }
       return seed;
     }
     throw e;
