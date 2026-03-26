@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { FlowDiagramReadonly } from "@/components/flow/flow-diagram";
+import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,7 @@ export default function FlowDetailPage() {
   const flow = data?.flows.find((f) => f.id === id);
 
   return (
-    <div className="space-y-6">
+    <StudioPage>
       <StudioPageHeader
         title={flow?.name ?? "Flow"}
         description={
@@ -34,7 +35,7 @@ export default function FlowDetailPage() {
       {!loading && !error && !flow ? (
         <div className="space-y-3">
           <p className="text-muted-foreground text-sm">
-            No flow with id <code className="text-xs">{id}</code>.
+            No flow with id <code className="font-mono text-xs">{id}</code>.
           </p>
           <Link
             href="/flows"
@@ -49,7 +50,7 @@ export default function FlowDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/flows/${encodeURIComponent(flow.id)}/edit`}
-              className={cn(buttonVariants({ size: "sm" }))}
+              className={cn(buttonVariants({ size: "sm", variant: "synth" }))}
             >
               Edit layout
             </Link>
@@ -69,13 +70,13 @@ export default function FlowDetailPage() {
           <div className="space-y-2">
             <h2 className="text-sm font-medium">Diagram</h2>
             <p className="text-muted-foreground text-xs">
-              Read-only view. Custom edges are shown when saved; otherwise a
-              linear chain follows step order.
+              Read-only view. Custom edges are shown when saved; otherwise a linear chain
+              follows step order.
             </p>
             <FlowDiagramReadonly flow={flow} />
           </div>
         </>
       ) : null}
-    </div>
+    </StudioPage>
   );
 }

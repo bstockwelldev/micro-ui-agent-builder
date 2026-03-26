@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { FlowEditor } from "@/components/flow/flow-editor";
+import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,7 @@ export default function FlowEditPage() {
   const flow = data?.flows.find((f) => f.id === id);
 
   return (
-    <div className="space-y-6">
+    <StudioPage>
       <StudioPageHeader
         title={flow ? `Edit: ${flow.name}` : "Edit flow"}
         description="Drag nodes and connect handles. Saving updates positions and edges via PUT /api/studio. The runner still executes steps in order."
@@ -31,7 +32,7 @@ export default function FlowEditPage() {
       {!loading && !error && !flow ? (
         <div className="space-y-3">
           <p className="text-muted-foreground text-sm">
-            No flow with id <code className="text-xs">{id}</code>.
+            No flow with id <code className="font-mono text-xs">{id}</code>.
           </p>
           <Link
             href="/flows"
@@ -60,6 +61,6 @@ export default function FlowEditPage() {
           <FlowEditor flow={flow} store={data} onSaved={() => void refetch()} />
         </>
       ) : null}
-    </div>
+    </StudioPage>
   );
 }

@@ -10,23 +10,30 @@ export function RunSection() {
   const flowId = searchParams.get("flowId") ?? undefined;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <p className="text-muted-foreground text-sm">
         {flowId ? (
           <>
             Active flow:{" "}
-            <code className="text-foreground text-xs">{flowId}</code>
+            <code className="text-foreground font-mono text-xs">{flowId}</code>
           </>
         ) : (
           <>
-            No <code className="text-xs">flowId</code> in the URL — the server
-            uses the default flow. Open a flow from{" "}
+            No <code className="font-mono text-xs">flowId</code> in the URL — the server uses
+            the default flow. Open a flow from{" "}
             <Link href="/flows" className="text-primary underline-offset-4 hover:underline">
               Flows
             </Link>{" "}
             to set one.
           </>
         )}
+      </p>
+      <p className="text-muted-foreground text-xs">
+        Past runs appear in{" "}
+        <Link href="/history" className="text-primary underline-offset-4 hover:underline">
+          History
+        </Link>
+        ; open a row for the full trace.
       </p>
       <RunChat flowId={flowId} />
     </div>

@@ -32,11 +32,11 @@ function renderPart(
     );
   }
   if (part.type === "reasoning") {
-    return (
-      <pre className="bg-muted/50 text-muted-foreground rounded-md p-2 text-xs">
-        {part.text}
-      </pre>
-    );
+      return (
+        <pre className="bg-surface-container-high/80 text-muted-foreground rounded-md p-2 font-mono text-xs">
+          {part.text}
+        </pre>
+      );
   }
   if (part.type === "dynamic-tool") {
     const header = (
@@ -47,7 +47,7 @@ function renderPart(
     );
     if (part.state === "approval-requested") {
       return (
-        <div className="border-border space-y-2 rounded-md border p-3">
+        <div className="bg-surface-container-high ring-outline-variant/25 space-y-2 rounded-md p-3 ring-1">
           {header}
           <pre className="max-h-40 overflow-auto text-xs">
             {JSON.stringify(part.input, null, 2)}
@@ -55,6 +55,7 @@ function renderPart(
           <div className="flex gap-2">
             <Button
               size="sm"
+              variant="synth"
               onClick={() =>
                 void addToolApprovalResponse({
                   id: part.approval.id,
@@ -83,7 +84,7 @@ function renderPart(
     }
     if (part.state === "output-available") {
       return (
-        <div className="border-border space-y-1 rounded-md border p-3">
+        <div className="bg-surface-container-high ring-outline-variant/25 space-y-1 rounded-md p-3 ring-1">
           {header}
           <pre className="max-h-48 overflow-auto text-xs">
             {JSON.stringify(part.output, null, 2)}
@@ -93,21 +94,21 @@ function renderPart(
     }
     if (part.state === "output-denied") {
       return (
-        <div className="border-destructive/40 text-destructive space-y-1 rounded-md border p-3 text-sm">
+        <div className="bg-destructive/10 text-destructive ring-destructive/30 space-y-1 rounded-md p-3 text-sm ring-1">
           {header}
           <p>Execution denied.</p>
         </div>
       );
     }
     return (
-      <div className="border-border rounded-md border p-2 text-xs">
+      <div className="bg-surface-container-low ring-outline-variant/20 rounded-md p-2 text-xs ring-1">
         {header}
         <span className="text-muted-foreground">State: {part.state}</span>
       </div>
     );
   }
   return (
-    <pre className="bg-muted/30 max-h-32 overflow-auto rounded p-2 text-[10px]">
+    <pre className="bg-surface-container-lowest/80 max-h-32 overflow-auto rounded p-2 font-mono text-[10px]">
       {JSON.stringify(part, null, 2)}
     </pre>
   );
@@ -211,14 +212,14 @@ export function RunChat({ flowId }: { flowId: string | undefined }) {
       </TabsList>
       <TabsContent value="chat" className="mt-4">
         <div className="flex min-h-[480px] flex-col gap-4">
-          <ScrollArea className="border-border bg-card/30 h-[min(60vh,520px)] rounded-lg border p-4">
+          <ScrollArea className="glass-panel ring-outline-variant/25 h-[min(60vh,520px)] rounded-lg p-4 ring-1">
             <div className="space-y-4 pr-3">
               {messages.map((m) => (
                 <article
                   key={m.id}
-                  className="space-y-2 rounded-md border border-transparent p-2"
+                  className="bg-surface-container-low/40 space-y-2 rounded-md p-3"
                 >
-                  <div className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                  <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                     {m.role}
                   </div>
                   <div className="space-y-2">
@@ -271,7 +272,11 @@ export function RunChat({ flowId }: { flowId: string | undefined }) {
                   Stop
                 </Button>
               ) : null}
-              <Button type="submit" disabled={busy || !input.trim()}>
+              <Button
+                type="submit"
+                variant="synth"
+                disabled={busy || !input.trim()}
+              >
                 Send
               </Button>
             </div>
@@ -291,13 +296,14 @@ export function RunChat({ flowId }: { flowId: string | undefined }) {
           </label>
           <textarea
             id="genui-instruction"
-            className="border-input bg-background focus-visible:ring-ring min-h-[100px] w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2"
+            className="ghost-border bg-surface-container-low/50 focus-visible:ring-ring min-h-[100px] w-full rounded-md border px-3 py-2 font-mono text-sm outline-none transition-expressive focus-visible:ring-2"
             value={genuiPrompt}
             onChange={(e) => setGenuiPrompt(e.target.value)}
             disabled={genuiBusy}
           />
           <Button
             type="button"
+            variant="synth"
             disabled={genuiBusy || !genuiPrompt.trim()}
             onClick={() => void generateGenui()}
           >

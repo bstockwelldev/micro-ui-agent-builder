@@ -1,5 +1,6 @@
 "use client";
 
+import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,16 +18,16 @@ export default function McpPage() {
   const servers = data?.mcpServers ?? [];
 
   return (
-    <div className="space-y-6">
+    <StudioPage>
       <StudioPageHeader
-        title="MCP"
+        title="MCP & connectors"
         description={
           <>
             Registered MCP servers.{" "}
-            <code className="text-xs">POST /api/mcp/proxy</code> forwards JSON
-            to <code className="text-xs">transport=http</code> URLs (JSON body{" "}
-            <code className="text-xs">mcpServerId</code> +{" "}
-            <code className="text-xs">request</code>).
+            <code className="font-mono text-xs">POST /api/mcp/proxy</code> forwards JSON to{" "}
+            <code className="font-mono text-xs">transport=http</code> URLs (JSON body{" "}
+            <code className="font-mono text-xs">mcpServerId</code> +{" "}
+            <code className="font-mono text-xs">request</code>).
           </>
         }
         loading={loading}
@@ -34,7 +35,7 @@ export default function McpPage() {
       />
       {error && !loading ? (
         <div
-          className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-4"
+          className="glass-panel ring-destructive/30 space-y-2 rounded-lg p-4 ring-1"
           role="alert"
         >
           <p className="text-destructive text-sm">{error}</p>
@@ -45,7 +46,7 @@ export default function McpPage() {
       ) : null}
       {!loading && !error ? (
         <>
-          <ul className="space-y-4">
+          <ul className="grid gap-5 lg:grid-cols-2">
             {servers.map((s) => (
               <li key={s.id}>
                 <Card>
@@ -59,7 +60,9 @@ export default function McpPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-muted-foreground text-xs">id: {s.id}</p>
+                    <p className="text-muted-foreground font-mono text-xs">
+                      id: <span className="text-foreground">{s.id}</span>
+                    </p>
                   </CardContent>
                 </Card>
               </li>
@@ -70,6 +73,6 @@ export default function McpPage() {
           ) : null}
         </>
       ) : null}
-    </div>
+    </StudioPage>
   );
 }

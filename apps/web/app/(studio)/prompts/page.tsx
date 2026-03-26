@@ -1,5 +1,6 @@
 "use client";
 
+import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,16 +17,16 @@ export default function PromptsPage() {
   const prompts = data?.prompts ?? [];
 
   return (
-    <div className="space-y-6">
+    <StudioPage>
       <StudioPageHeader
-        title="Prompts"
-        description="Prompt templates referenced by flow steps (system / user nodes)."
+        title="Prompt Lab"
+        description="Prompt templates referenced by flow steps (system / user nodes). Compare versions and attach eval hooks when the runner persists drafts."
         loading={loading}
         onRefresh={refetch}
       />
       {error && !loading ? (
         <div
-          className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-4"
+          className="glass-panel ring-destructive/30 space-y-2 rounded-lg p-4 ring-1"
           role="alert"
         >
           <p className="text-destructive text-sm">{error}</p>
@@ -42,12 +43,10 @@ export default function PromptsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">{p.name}</CardTitle>
-                    <CardDescription className="font-mono text-xs">
-                      {p.id}
-                    </CardDescription>
+                    <CardDescription className="font-mono text-xs">{p.id}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <pre className="bg-muted/40 max-h-48 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
+                    <pre className="bg-surface-container-lowest/90 max-h-48 overflow-auto rounded-lg p-3 font-mono text-xs whitespace-pre-wrap ring-1 ring-outline-variant/20">
                       {p.body}
                     </pre>
                   </CardContent>
@@ -60,6 +59,6 @@ export default function PromptsPage() {
           ) : null}
         </>
       ) : null}
-    </div>
+    </StudioPage>
   );
 }

@@ -122,7 +122,7 @@ function FlowEditorInner({
 
   return (
     <div className="space-y-3">
-      <div className="border-border h-[min(60vh,560px)] w-full min-h-[400px] rounded-lg border">
+      <div className="bg-surface-container-lowest ring-outline-variant/30 h-[min(60vh,560px)] w-full min-h-[400px] rounded-lg ring-1">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -146,6 +146,7 @@ function FlowEditorInner({
       ) : null}
       <Button
         type="button"
+        variant="synth"
         disabled={saving}
         onClick={() => void saveLayout()}
       >

@@ -11,6 +11,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        synth:
+          "border-transparent bg-[linear-gradient(135deg,var(--synth-primary-from)_0%,var(--synth-primary-to)_100%)] text-[color:var(--synth-on-primary)] shadow-none transition-expressive [a]:hover:brightness-110 focus-visible:ring-[#00daf3]/40",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

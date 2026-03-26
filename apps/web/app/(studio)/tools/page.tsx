@@ -1,5 +1,6 @@
 "use client";
 
+import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,16 +18,16 @@ export default function ToolsPage() {
   const tools = data?.tools ?? [];
 
   return (
-    <div className="space-y-6">
+    <StudioPage>
       <StudioPageHeader
-        title="Tools"
+        title="Tool registry"
         description="Catalog definitions exposed to the agent. Approval-required tools show approve/deny in Run."
         loading={loading}
         onRefresh={refetch}
       />
       {error && !loading ? (
         <div
-          className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-4"
+          className="glass-panel ring-destructive/30 space-y-2 rounded-lg p-4 ring-1"
           role="alert"
         >
           <p className="text-destructive text-sm">{error}</p>
@@ -37,13 +38,13 @@ export default function ToolsPage() {
       ) : null}
       {!loading && !error ? (
         <>
-          <ul className="grid gap-4 md:grid-cols-2">
+          <ul className="grid gap-5 md:grid-cols-2">
             {tools.map((t) => (
               <li key={t.id}>
                 <Card>
                   <CardHeader>
                     <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="text-base">{t.id}</CardTitle>
+                      <CardTitle className="font-mono text-base">{t.id}</CardTitle>
                       {t.requiresApproval ? (
                         <Badge variant="outline">Approval</Badge>
                       ) : null}
@@ -51,7 +52,7 @@ export default function ToolsPage() {
                     <CardDescription>{t.description}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <pre className="bg-muted/40 max-h-36 overflow-auto rounded-md p-2 text-[11px]">
+                    <pre className="bg-surface-container-lowest/90 max-h-36 overflow-auto rounded-lg p-2 font-mono text-[11px] ring-1 ring-outline-variant/20">
                       {t.parametersJson}
                     </pre>
                   </CardContent>
@@ -60,10 +61,10 @@ export default function ToolsPage() {
             ))}
           </ul>
           {tools.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No tools in catalog.</p>
+            <p className="text-muted-foreground text-sm">No tools configured.</p>
           ) : null}
         </>
       ) : null}
-    </div>
+    </StudioPage>
   );
 }

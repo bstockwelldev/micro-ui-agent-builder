@@ -9,14 +9,14 @@ import { Loader2, RefreshCw } from "lucide-react";
 type Props = {
   title: string;
   description: ReactNode;
-  loading: boolean;
-  onRefresh: () => void;
+  loading?: boolean;
+  onRefresh?: () => void;
 };
 
 export function StudioPageHeader({
   title,
   description,
-  loading,
+  loading = false,
   onRefresh,
 }: Props) {
   return (
@@ -26,20 +26,23 @@ export function StudioPageHeader({
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="text-muted-foreground text-sm">{description}</p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void onRefresh()}
-          disabled={loading}
-          aria-busy={loading}
-        >
-          <RefreshCw
-            className={cn("mr-2 size-4", loading && "animate-spin")}
-            aria-hidden
-          />
-          Refresh
-        </Button>
+        {onRefresh ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="transition-expressive"
+            onClick={() => void onRefresh()}
+            disabled={loading}
+            aria-busy={loading}
+          >
+            <RefreshCw
+              className={cn("mr-2 size-4", loading && "animate-spin")}
+              aria-hidden
+            />
+            Refresh
+          </Button>
+        ) : null}
       </div>
       {loading ? (
         <p
