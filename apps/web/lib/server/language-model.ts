@@ -4,6 +4,12 @@ import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
+import {
+  config as aiRegistryConfig,
+  hasEnabledCatalogProvider,
+  tryResolveRegistryLanguageModelId,
+} from "@/lib/ai-config";
+
 export const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 /** Default for auto / bare ids — supports JSON schema structured outputs (e.g. GenUI). */
 export const DEFAULT_GOOGLE_MODEL = "gemini-2.5-flash-lite";
@@ -23,6 +29,7 @@ export type ProviderEnv = {
 
 function getGoogleApiKey(): string | undefined {
   const k =
+    process.env.GOOGLE_API_KEY?.trim() ||
     process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ||
     process.env.GEMINI_API_KEY?.trim() ||
     process.env.GOOGLE_GENAI_API_KEY?.trim() ||
@@ -51,12 +58,20 @@ export function getProviderEnv(): ProviderEnv {
 
 export function missingProviderMessage(): string {
   const e = getProviderEnv();
-  if (e.hasGroq || e.hasGoogle || e.hasOpenAI || e.hasGateway || e.hasOllama)
+  if (
+    e.hasGroq ||
+    e.hasGoogle ||
+    e.hasOpenAI ||
+    e.hasGateway ||
+    e.hasOllama ||
+    hasEnabledCatalogProvider()
+  )
     return "";
   return [
     "No LLM API key configured.",
-    "Set one of: GOOGLE_GENERATIVE_AI_API_KEY, GEMINI_API_KEY, or NEXT_PUBLIC_GEMINI_API_KEY (preferred for structured outputs),",
+    "Set one of: GOOGLE_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, GEMINI_API_KEY, or NEXT_PUBLIC_GEMINI_API_KEY (preferred for structured outputs),",
     "GROQ_API_KEY, OPENAI_API_KEY, AI_GATEWAY_API_KEY (Vercel AI Gateway),",
+    "MISTRAL_API_KEY, OPENROUTER_API_KEY, TOGETHER_API_KEY (see lib/ai-config.ts),",
     "or OLLAMA_BASE_URL for a local OpenAI-compatible Ollama endpoint.",
   ].join(" ");
 }
@@ -82,6 +97,9 @@ export function parseModelRef(requested?: string): {
     if (p === "openai") return { provider: "openai", modelId: id || DEFAULT_OPENAI_MODEL };
     if (p === "ollama")
       return { provider: "ollama", modelId: id || DEFAULT_OLLAMA_MODEL };
+    if (p === "mistral" || p === "together" || p === "openrouter") {
+      return { provider: "auto", modelId: raw };
+    }
   }
   if (lower.includes("gemini")) return { provider: "google", modelId: raw };
   if (
@@ -287,6 +305,26 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
       });
     }
     return c[0];
+  }
+
+  const fromRegistry = tryResolveRegistryLanguageModelId(requested);
+  if (fromRegistry) {
+    const model = aiRegistryConfig.registry.languageModel(
+      fromRegistry.fullId as never,
+    );
+    const fbKey =
+      fromRegistry.registryId === "gemini"
+        ? ("google" as const)
+        : fromRegistry.registryId === "groq"
+          ? ("groq" as const)
+          : ("openai" as const);
+    const fb = pickFallback(fbKey);
+    return {
+      model,
+      providerLabel: fromRegistry.fullId,
+      fallback: fb?.model,
+      fallbackLabel: fb?.label,
+    };
   }
 
   if (provider === "ollama") {
