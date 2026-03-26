@@ -16,6 +16,7 @@ import {
   Wrench,
 } from "lucide-react";
 
+import { StudioAuthSection } from "@/components/studio/studio-auth-section";
 import { cn } from "@/lib/utils";
 
 const navGroups = [
@@ -78,7 +79,7 @@ export function StudioShell({
             Flow studio · AI SDK v6
           </p>
         </div>
-        <nav className="flex flex-1 flex-col gap-6">
+        <nav className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
           {navGroups.map((group) => (
             <div key={group.label} className="space-y-2">
               <p className="text-muted-foreground px-2 text-[10px] font-semibold tracking-wider uppercase">
@@ -122,6 +123,7 @@ export function StudioShell({
             </div>
           ))}
         </nav>
+        <StudioAuthSection />
       </aside>
       <div className="bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

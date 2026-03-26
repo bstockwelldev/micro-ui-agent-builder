@@ -33,14 +33,17 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0(@types/react@19.2.14)(react-dom@19.1.2(react@19.1.2))(react@19.1.2)
       '@bstockwelldev/prompt-guardrails-core':
-        specifier: file:../../../prompt-guardrails-core
-        version: file:../prompt-guardrails-core
+        specifier: ^1.1.0
+        version: 1.1.0
       '@bstockwelldev/prompt-rubric':
-        specifier: file:../../../prompt-rubric
-        version: file:../prompt-rubric
+        specifier: ^0.1.0
+        version: 0.1.0
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@supabase/ssr':
+        specifier: ^0.9.0
+        version: 0.9.0(@supabase/supabase-js@2.100.0)
       '@supabase/supabase-js':
         specifier: ^2.49.1
         version: 2.100.0
@@ -334,12 +337,12 @@ packages:
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
 
-  '@bstockwelldev/prompt-guardrails-core@file:../prompt-guardrails-core':
-    resolution: {directory: ../prompt-guardrails-core, type: directory}
+  '@bstockwelldev/prompt-guardrails-core@1.1.0':
+    resolution: {integrity: sha512-LQhur7rmfk9NvlkustreaFT89FBqZe+npY4IToUO/+H5vPSNRySReqX4vHrcyZFf6J94/dgyh6XyLpA/e7ygzA==}
     engines: {node: '>=20.0.0'}
 
-  '@bstockwelldev/prompt-rubric@file:../prompt-rubric':
-    resolution: {directory: ../prompt-rubric, type: directory}
+  '@bstockwelldev/prompt-rubric@0.1.0':
+    resolution: {integrity: sha512-sx4h4xswe6WaOLgFM04C2xZeKJgsMQfk83lQWrM+vkyovm+9trHUMYY10nzTVc0TAsnVIdBdSCwi7abkgYjJHw==}
     engines: {node: '>=20.0.0'}
     hasBin: true
 
@@ -1080,6 +1083,11 @@ packages:
   '@supabase/realtime-js@2.100.0':
     resolution: {integrity: sha512-2AZs00zzEF0HuCKY8grz5eCYlwEfVi5HONLZFoNR6aDfxQivl8zdQYNjyFoqN2MZiVhQHD7u6XV/xHwM8mCEHw==}
     engines: {node: '>=20.0.0'}
+
+  '@supabase/ssr@0.9.0':
+    resolution: {integrity: sha512-UFY6otYV3yqCgV+AyHj80vNkTvbf1Gas2LW4dpbQ4ap6p6v3eB2oaDfcI99jsuJzwVBCFU4BJI+oDYyhNk1z0Q==}
+    peerDependencies:
+      '@supabase/supabase-js': ^2.97.0
 
   '@supabase/storage-js@2.100.0':
     resolution: {integrity: sha512-d4EeuK6RNIgYNA2MU9kj8lQrLm5AzZ+WwpWjGkii6SADQNIGTC/uiaTRu02XJ5AmFALQfo8fLl9xuCkO6Xw+iQ==}
@@ -4338,11 +4346,11 @@ snapshots:
 
   '@braintree/sanitize-url@7.1.2': {}
 
-  '@bstockwelldev/prompt-guardrails-core@file:../prompt-guardrails-core':
+  '@bstockwelldev/prompt-guardrails-core@1.1.0':
     dependencies:
       zod: 3.25.76
 
-  '@bstockwelldev/prompt-rubric@file:../prompt-rubric':
+  '@bstockwelldev/prompt-rubric@0.1.0':
     dependencies:
       zod: 3.25.76
 
@@ -4946,6 +4954,11 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@supabase/ssr@0.9.0(@supabase/supabase-js@2.100.0)':
+    dependencies:
+      '@supabase/supabase-js': 2.100.0
+      cookie: 1.1.1
 
   '@supabase/storage-js@2.100.0':
     dependencies:
