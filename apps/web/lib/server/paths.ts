@@ -15,3 +15,8 @@ export function getDataDir(): string {
 export function getStoreFilePath(): string {
   return path.join(getDataDir(), "store.json");
 }
+
+/** Vector chunks + document metadata for flow-scoped RAG (local /tmp on Vercel). */
+export function getFlowKnowledgeFilePath(): string {
+  return path.join(getDataDir(), "flow-knowledge.json");
+}

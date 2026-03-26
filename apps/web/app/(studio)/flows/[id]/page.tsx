@@ -3,27 +3,37 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { FlowDiagramReadonly } from "@/components/flow/flow-diagram";
+import { FlowEditor } from "@/components/flow/flow-editor";
 import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useStudioApi } from "@/hooks/use-studio-api";
 
-export default function FlowDetailPage() {
+export default function FlowEditorPage() {
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
   const { data, loading, error, refetch } = useStudioApi();
   const flow = data?.flows.find((f) => f.id === id);
 
+  if (flow && data) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <FlowEditor
+          flow={flow}
+          store={data}
+          onSaved={() => void refetch()}
+          onRefresh={() => void refetch()}
+        />
+      </div>
+    );
+  }
+
   return (
     <StudioPage>
       <StudioPageHeader
-        title={flow?.name ?? "Flow"}
-        description={
-          flow?.description ??
-          "Linear steps and optional canvas layout. Execution still follows step order."
-        }
+        title={flow ? flow.name : "Flow"}
+        description="Visual diagram editor. Drag nodes, connect handles, and save via PUT /api/studio. The runner still executes steps in order."
         loading={loading}
         onRefresh={refetch}
       />
@@ -44,38 +54,6 @@ export default function FlowDetailPage() {
             Back to flows
           </Link>
         </div>
-      ) : null}
-      {flow ? (
-        <>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/flows/${encodeURIComponent(flow.id)}/edit`}
-              className={cn(buttonVariants({ size: "sm", variant: "synth" }))}
-            >
-              Edit layout
-            </Link>
-            <Link
-              href={`/run?flowId=${encodeURIComponent(flow.id)}`}
-              className={cn(buttonVariants({ size: "sm", variant: "secondary" }))}
-            >
-              Open in Run
-            </Link>
-            <Link
-              href="/flows"
-              className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
-            >
-              All flows
-            </Link>
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-sm font-medium">Diagram</h2>
-            <p className="text-muted-foreground text-xs">
-              Read-only view. Custom edges are shown when saved; otherwise a linear chain
-              follows step order.
-            </p>
-            <FlowDiagramReadonly flow={flow} />
-          </div>
-        </>
       ) : null}
     </StudioPage>
   );

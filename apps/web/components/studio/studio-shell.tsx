@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Bot,
   FileText,
   History,
   LayoutDashboard,
+  Layers,
   Play,
   Rocket,
   Server,
@@ -21,8 +23,10 @@ const navGroups = [
     label: "Build",
     items: [
       { href: "/flows", label: "Flows", icon: LayoutDashboard },
+      { href: "/agents", label: "Agents", icon: Bot },
       { href: "/prompts", label: "Prompts", icon: FileText },
       { href: "/tools", label: "Tools", icon: Wrench },
+      { href: "/genui", label: "GenUI", icon: Layers },
       { href: "/mcp", label: "MCP", icon: Server },
     ],
   },
@@ -85,9 +89,17 @@ export function StudioShell({
                   const active =
                     href === "/flows"
                       ? pathname === "/flows" || pathname.startsWith("/flows/")
-                      : href === "/history"
-                        ? pathname === "/history" || pathname.startsWith("/runs/")
-                        : pathname === href || pathname.startsWith(`${href}/`);
+                      : href === "/agents"
+                        ? pathname === "/agents" ||
+                          pathname.startsWith("/agents/")
+                        : href === "/genui"
+                          ? pathname === "/genui" ||
+                            pathname.startsWith("/genui/")
+                          : href === "/history"
+                            ? pathname === "/history" ||
+                              pathname.startsWith("/runs/")
+                            : pathname === href ||
+                              pathname.startsWith(`${href}/`);
                   return (
                     <li key={href}>
                       <Link
@@ -111,9 +123,18 @@ export function StudioShell({
           ))}
         </nav>
       </aside>
-      <div className="bg-background flex min-w-0 flex-1 flex-col">
-        <main className="flex-1">
-          <div className="mx-auto max-w-6xl px-5 py-6 md:px-6">{children}</div>
+      <div className="bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div
+            className={cn(
+              /^\/flows\/[^/]+$/.test(pathname ?? "") ||
+                /^\/flows\/[^/]+\/edit$/.test(pathname ?? "")
+                ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                : "mx-auto max-w-6xl px-5 py-6 md:px-6",
+            )}
+          >
+            {children}
+          </div>
         </main>
       </div>
     </div>

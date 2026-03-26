@@ -6,7 +6,11 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      '@google/stitch-sdk':
+        specifier: ^0.0.3
+        version: 0.0.3
 
   apps/web:
     dependencies:
@@ -28,6 +32,12 @@ importers:
       '@base-ui/react':
         specifier: ^1.3.0
         version: 1.3.0(@types/react@19.2.14)(react-dom@19.1.2(react@19.1.2))(react@19.1.2)
+      '@bstockwelldev/prompt-guardrails-core':
+        specifier: file:../../../prompt-guardrails-core
+        version: file:../prompt-guardrails-core
+      '@bstockwelldev/prompt-rubric':
+        specifier: file:../../../prompt-rubric
+        version: file:../prompt-rubric
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -324,6 +334,15 @@ packages:
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
 
+  '@bstockwelldev/prompt-guardrails-core@file:../prompt-guardrails-core':
+    resolution: {directory: ../prompt-guardrails-core, type: directory}
+    engines: {node: '>=20.0.0'}
+
+  '@bstockwelldev/prompt-rubric@file:../prompt-rubric':
+    resolution: {directory: ../prompt-rubric, type: directory}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
+
   '@chevrotain/cst-dts-gen@11.1.2':
     resolution: {integrity: sha512-XTsjvDVB5nDZBQB8o0o/0ozNelQtn2KrUVteIHSlPd2VAV2utEb6JzyCJaJ8tGxACR4RiBNWy5uYUHX2eji88Q==}
 
@@ -566,6 +585,10 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@google/stitch-sdk@0.0.3':
+    resolution: {integrity: sha512-lBqT4sgYUzyKdFJ8m+ITxQedI29iWhoJtRXbxGYYg1iSGoRV0dqwhyKIL7rN9QW+NoyBuIMmsjuCcoxtm8Qz4A==}
+    engines: {node: '>=18'}
 
   '@hono/node-server@1.19.11':
     resolution: {integrity: sha512-dr8/3zEaB+p0D2n/IUrlPF1HZm586qgJNXK1a9fhg/PzdtkK7Ksd5l312tJX2yBuALqDYBlG20QEbayqPyxn+g==}
@@ -4028,6 +4051,9 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
   zustand@4.5.7:
     resolution: {integrity: sha512-CHOUy7mu3lbD6o6LJLfllpjkzhHXSBlX8B9+qPddUsIfeF5S/UZ5q0kmCsnRqT1UHFQZchNFDDzMbQsuesHWlw==}
     engines: {node: '>=12.7.0'}
@@ -4312,6 +4338,14 @@ snapshots:
 
   '@braintree/sanitize-url@7.1.2': {}
 
+  '@bstockwelldev/prompt-guardrails-core@file:../prompt-guardrails-core':
+    dependencies:
+      zod: 3.25.76
+
+  '@bstockwelldev/prompt-rubric@file:../prompt-rubric':
+    dependencies:
+      zod: 3.25.76
+
   '@chevrotain/cst-dts-gen@11.1.2':
     dependencies:
       '@chevrotain/gast': 11.1.2
@@ -4501,6 +4535,14 @@ snapshots:
       react-dom: 19.1.2(react@19.1.2)
 
   '@floating-ui/utils@0.2.11': {}
+
+  '@google/stitch-sdk@0.0.3':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.28.0(zod@4.3.6)
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
 
   '@hono/node-server@1.19.11(hono@4.12.9)':
     dependencies:
@@ -4692,6 +4734,28 @@ snapshots:
       raw-body: 3.0.2
       zod: 3.25.76
       zod-to-json-schema: 3.25.1(zod@3.25.76)
+    transitivePeerDependencies:
+      - supports-color
+
+  '@modelcontextprotocol/sdk@1.28.0(zod@4.3.6)':
+    dependencies:
+      '@hono/node-server': 1.19.11(hono@4.12.9)
+      ajv: 8.18.0
+      ajv-formats: 3.0.1(ajv@8.18.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 8.3.1(express@5.2.1)
+      hono: 4.12.9
+      jose: 6.2.2
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.3.6
+      zod-to-json-schema: 3.25.1(zod@4.3.6)
     transitivePeerDependencies:
       - supports-color
 
@@ -8214,7 +8278,13 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
+  zod-to-json-schema@3.25.1(zod@4.3.6):
+    dependencies:
+      zod: 4.3.6
+
   zod@3.25.76: {}
+
+  zod@4.3.6: {}
 
   zustand@4.5.7(@types/react@19.2.14)(react@19.1.2):
     dependencies:

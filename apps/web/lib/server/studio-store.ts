@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 
 import {
   parseStudioStore,
+  type AgentProfile,
   type FlowDocument,
   type StudioStore,
 } from "@repo/shared";
@@ -60,6 +61,22 @@ export function seedStudioStore(): StudioStore {
     ],
     tools: [
       {
+        id: "web_search",
+        description:
+          "Search the public web via DuckDuckGo instant answers (no API key). Returns snippets and related topics when available.",
+        parametersJson:
+          '{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"maxResults":{"type":"number","description":"Max results hint"}},"required":["query"]}',
+        requiresApproval: false,
+      },
+      {
+        id: "calculator",
+        description:
+          "Evaluate a safe arithmetic expression (+ − × ÷, parentheses, unary +/−).",
+        parametersJson:
+          '{"type":"object","properties":{"expression":{"type":"string","description":"Arithmetic expression e.g. (2+3)*4"}},"required":["expression"]}',
+        requiresApproval: false,
+      },
+      {
         id: "echo",
         description: "Echo the provided payload for testing tool wiring.",
         parametersJson: "{}",
@@ -76,9 +93,34 @@ export function seedStudioStore(): StudioStore {
     mcpServers: [
       {
         id: "stub_local",
-        name: "Local stub",
+        name: "Local HTTP stub",
         url: "http://127.0.0.1:9999",
         transport: "http",
+      },
+      {
+        id: "example_sse",
+        name: "Example SSE (registry only)",
+        url: "https://example.com/mcp",
+        transport: "sse",
+      },
+    ],
+    agents: [
+      {
+        id: "agent_demo",
+        name: "Demo agent",
+        description: "Points at the demo flow for quick testing in Run.",
+        defaultFlowId: "flow_demo",
+        systemInstructions:
+          "You are the Studio demo agent: be concise, friendly, and explain tool usage when relevant.",
+        optionalElements: ["Catalog tools enabled", "GenUI tab available"],
+      },
+    ],
+    llmProfiles: [
+      {
+        id: "llm_gemini_lite",
+        name: "Gemini 2.5 Flash Lite",
+        model: "gemini-2.5-flash-lite",
+        description: "Default when a Google / Gemini provider key is configured.",
       },
     ],
     pausedRuns: {},
@@ -178,4 +220,12 @@ export function getFlowById(
 ): FlowDocument | undefined {
   if (!flowId) return store.flows[0];
   return store.flows.find((f) => f.id === flowId);
+}
+
+export function getAgentById(
+  store: StudioStore,
+  agentId: string | undefined,
+): AgentProfile | undefined {
+  if (!agentId?.trim()) return undefined;
+  return store.agents.find((a) => a.id === agentId);
 }

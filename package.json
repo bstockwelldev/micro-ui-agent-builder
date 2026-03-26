@@ -8,11 +8,15 @@
     "build": "pnpm --filter shared build && pnpm --filter web build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm --filter @repo/shared build && pnpm -r typecheck",
-    "test": "pnpm --filter shared test"
+    "test": "pnpm --filter shared test",
+    "stitch:download-screen": "node scripts/stitch-download-screen.mjs"
   },
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
   },
-  "packageManager": "pnpm@9.15.4"
+  "packageManager": "pnpm@9.15.4",
+  "devDependencies": {
+    "@google/stitch-sdk": "^0.0.3"
+  }
 }

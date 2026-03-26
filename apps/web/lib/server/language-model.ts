@@ -10,12 +10,15 @@ export const DEFAULT_GOOGLE_MODEL = "gemini-2.5-flash-lite";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 /** Vercel AI Gateway default when that is the only configured key */
 const DEFAULT_GATEWAY_MODEL = "meta/llama-3.3-70b";
+/** OpenAI-compatible endpoint at Ollama (see https://github.com/ollama/ollama/blob/main/docs/openai.md). */
+export const DEFAULT_OLLAMA_MODEL = "llama3.2";
 
 export type ProviderEnv = {
   hasGroq: boolean;
   hasGoogle: boolean;
   hasOpenAI: boolean;
   hasGateway: boolean;
+  hasOllama: boolean;
 };
 
 function getGoogleApiKey(): string | undefined {
@@ -27,27 +30,39 @@ function getGoogleApiKey(): string | undefined {
   return k || undefined;
 }
 
+/** Normalized OpenAI-compatible base URL (…/v1). */
+export function getOllamaBaseUrl(): string | undefined {
+  const raw = process.env.OLLAMA_BASE_URL?.trim();
+  if (!raw) return undefined;
+  const noTrail = raw.replace(/\/+$/, "");
+  if (noTrail.endsWith("/v1")) return noTrail;
+  return `${noTrail}/v1`;
+}
+
 export function getProviderEnv(): ProviderEnv {
   return {
     hasGroq: Boolean(process.env.GROQ_API_KEY?.trim()),
     hasGoogle: Boolean(getGoogleApiKey()),
     hasOpenAI: Boolean(process.env.OPENAI_API_KEY?.trim()),
     hasGateway: Boolean(process.env.AI_GATEWAY_API_KEY?.trim()),
+    hasOllama: Boolean(getOllamaBaseUrl()),
   };
 }
 
 export function missingProviderMessage(): string {
   const e = getProviderEnv();
-  if (e.hasGroq || e.hasGoogle || e.hasOpenAI || e.hasGateway) return "";
+  if (e.hasGroq || e.hasGoogle || e.hasOpenAI || e.hasGateway || e.hasOllama)
+    return "";
   return [
     "No LLM API key configured.",
     "Set one of: GOOGLE_GENERATIVE_AI_API_KEY, GEMINI_API_KEY, or NEXT_PUBLIC_GEMINI_API_KEY (preferred for structured outputs),",
-    "GROQ_API_KEY, OPENAI_API_KEY, or AI_GATEWAY_API_KEY (Vercel AI Gateway).",
+    "GROQ_API_KEY, OPENAI_API_KEY, AI_GATEWAY_API_KEY (Vercel AI Gateway),",
+    "or OLLAMA_BASE_URL for a local OpenAI-compatible Ollama endpoint.",
   ].join(" ");
 }
 
-function parseModelRef(requested?: string): {
-  provider: "groq" | "google" | "openai" | "gateway" | "auto";
+export function parseModelRef(requested?: string): {
+  provider: "groq" | "google" | "openai" | "gateway" | "ollama" | "auto";
   modelId: string;
 } {
   const raw = requested?.trim() ?? "";
@@ -65,6 +80,8 @@ function parseModelRef(requested?: string): {
       return { provider: "google", modelId: id || DEFAULT_GOOGLE_MODEL };
     }
     if (p === "openai") return { provider: "openai", modelId: id || DEFAULT_OPENAI_MODEL };
+    if (p === "ollama")
+      return { provider: "ollama", modelId: id || DEFAULT_OLLAMA_MODEL };
   }
   if (lower.includes("gemini")) return { provider: "google", modelId: raw };
   if (
@@ -92,6 +109,41 @@ export type ResolvedLanguageModel = {
   fallbackLabel?: string;
 };
 
+/** Resolve a single Ollama (OpenAI-compatible) model; null if OLLAMA_BASE_URL is unset. */
+export function resolveOllamaLanguageModel(
+  requestedFlowModel?: string,
+): ResolvedLanguageModel | null {
+  const base = getOllamaBaseUrl();
+  if (!base) return null;
+
+  const envModel = process.env.OLLAMA_MODEL?.trim();
+  const parsed = parseModelRef(requestedFlowModel);
+  const fromFlow =
+    parsed.provider === "ollama" && parsed.modelId
+      ? parsed.modelId
+      : undefined;
+  const bare = parsed.modelId || "";
+  const heuristic =
+    bare &&
+    !bare.toLowerCase().includes("gemini") &&
+    !/^(gpt|o[134])/i.test(bare.trim())
+      ? bare.split("/").pop()!.trim() || bare
+      : undefined;
+
+  const id =
+    envModel || fromFlow || heuristic || DEFAULT_OLLAMA_MODEL;
+
+  const ollama = createOpenAI({
+    baseURL: base,
+    apiKey: process.env.OLLAMA_API_KEY?.trim() || "ollama",
+  });
+
+  return {
+    model: ollama(id),
+    providerLabel: `ollama:${id}`,
+  };
+}
+
 function gatewayModel(fullId: string): ResolvedLanguageModel {
   const apiKey = process.env.AI_GATEWAY_API_KEY!;
   const gw = createGatewayProvider({ apiKey });
@@ -116,7 +168,8 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
     env.hasGateway &&
     !env.hasGroq &&
     !env.hasGoogle &&
-    !env.hasOpenAI
+    !env.hasOpenAI &&
+    !env.hasOllama
   ) {
     const raw = requested?.trim() ?? "";
     const id =
@@ -135,6 +188,14 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
   const openaiClient = env.hasOpenAI
     ? createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
     : null;
+  const ollamaBase = getOllamaBaseUrl();
+  const ollamaClient =
+    env.hasOllama && ollamaBase
+      ? createOpenAI({
+          baseURL: ollamaBase,
+          apiKey: process.env.OLLAMA_API_KEY?.trim() || "ollama",
+        })
+      : null;
 
   function groqModel(id: string) {
     if (!groq) throw new Error("NO_GROQ");
@@ -148,57 +209,96 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
     if (!openaiClient) throw new Error("NO_OPENAI");
     return openaiClient(id || DEFAULT_OPENAI_MODEL);
   }
+  function ollamaModel(id: string) {
+    if (!ollamaClient) throw new Error("NO_OLLAMA");
+    return ollamaClient(id || DEFAULT_OLLAMA_MODEL);
+  }
 
   function build(
-    p: "groq" | "google" | "openai",
+    p: "groq" | "google" | "openai" | "ollama",
     id: string,
   ): LanguageModel | null {
     if (p === "groq" && groq) return groqModel(id);
     if (p === "google" && google) return googleModel(id);
     if (p === "openai" && openaiClient) return openaiModel(id);
+    if (p === "ollama" && ollamaClient) return ollamaModel(id);
     return null;
   }
 
+  /** Next provider when the primary (cloud or local) fails — Ollama is last for cloud primaries. */
   function pickFallback(
-    used: "groq" | "google" | "openai",
+    used: "groq" | "google" | "openai" | "ollama",
   ): { model: LanguageModel; label: string } | undefined {
-    if (used === "groq" && google) {
-      return {
-        model: googleModel(DEFAULT_GOOGLE_MODEL),
-        label: `google:${DEFAULT_GOOGLE_MODEL}`,
-      };
+    const c: { model: LanguageModel; label: string }[] = [];
+    if (used === "groq") {
+      if (google)
+        c.push({
+          model: googleModel(DEFAULT_GOOGLE_MODEL),
+          label: `google:${DEFAULT_GOOGLE_MODEL}`,
+        });
+      if (openaiClient)
+        c.push({
+          model: openaiModel(DEFAULT_OPENAI_MODEL),
+          label: `openai:${DEFAULT_OPENAI_MODEL}`,
+        });
+    } else if (used === "google") {
+      if (openaiClient)
+        c.push({
+          model: openaiModel(DEFAULT_OPENAI_MODEL),
+          label: `openai:${DEFAULT_OPENAI_MODEL}`,
+        });
+      if (groq)
+        c.push({
+          model: groqModel(DEFAULT_GROQ_MODEL),
+          label: `groq:${DEFAULT_GROQ_MODEL}`,
+        });
+    } else if (used === "openai") {
+      if (groq)
+        c.push({
+          model: groqModel(DEFAULT_GROQ_MODEL),
+          label: `groq:${DEFAULT_GROQ_MODEL}`,
+        });
+      if (google)
+        c.push({
+          model: googleModel(DEFAULT_GOOGLE_MODEL),
+          label: `google:${DEFAULT_GOOGLE_MODEL}`,
+        });
+    } else if (used === "ollama") {
+      if (google)
+        c.push({
+          model: googleModel(DEFAULT_GOOGLE_MODEL),
+          label: `google:${DEFAULT_GOOGLE_MODEL}`,
+        });
+      if (groq)
+        c.push({
+          model: groqModel(DEFAULT_GROQ_MODEL),
+          label: `groq:${DEFAULT_GROQ_MODEL}`,
+        });
+      if (openaiClient)
+        c.push({
+          model: openaiModel(DEFAULT_OPENAI_MODEL),
+          label: `openai:${DEFAULT_OPENAI_MODEL}`,
+        });
     }
-    if (used === "groq" && openaiClient) {
-      return {
-        model: openaiModel(DEFAULT_OPENAI_MODEL),
-        label: `openai:${DEFAULT_OPENAI_MODEL}`,
-      };
+    if (used !== "ollama" && ollamaClient) {
+      c.push({
+        model: ollamaModel(DEFAULT_OLLAMA_MODEL),
+        label: `ollama:${DEFAULT_OLLAMA_MODEL}`,
+      });
     }
-    if (used === "google" && openaiClient) {
-      return {
-        model: openaiModel(DEFAULT_OPENAI_MODEL),
-        label: `openai:${DEFAULT_OPENAI_MODEL}`,
-      };
-    }
-    if (used === "google" && groq) {
-      return {
-        model: groqModel(DEFAULT_GROQ_MODEL),
-        label: `groq:${DEFAULT_GROQ_MODEL}`,
-      };
-    }
-    if (used === "openai" && groq) {
-      return {
-        model: groqModel(DEFAULT_GROQ_MODEL),
-        label: `groq:${DEFAULT_GROQ_MODEL}`,
-      };
-    }
-    if (used === "openai" && google) {
-      return {
-        model: googleModel(DEFAULT_GOOGLE_MODEL),
-        label: `google:${DEFAULT_GOOGLE_MODEL}`,
-      };
-    }
-    return undefined;
+    return c[0];
+  }
+
+  if (provider === "ollama") {
+    if (!ollamaClient) throw new Error("NO_PROVIDER");
+    const id = modelId || DEFAULT_OLLAMA_MODEL;
+    const fb = pickFallback("ollama");
+    return {
+      model: ollamaModel(id),
+      providerLabel: `ollama:${id}`,
+      fallback: fb?.model,
+      fallbackLabel: fb?.label,
+    };
   }
 
   if (provider !== "auto" && provider !== "gateway") {
@@ -252,7 +352,29 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
           ? bare
           : DEFAULT_OPENAI_MODEL
         : modelId || DEFAULT_OPENAI_MODEL;
-    return { model: openaiModel(id), providerLabel: `openai:${id}` };
+    const fb = pickFallback("openai");
+    return {
+      model: openaiModel(id),
+      providerLabel: `openai:${id}`,
+      fallback: fb?.model,
+      fallbackLabel: fb?.label,
+    };
+  }
+
+  if (ollamaClient) {
+    const id =
+      provider === "auto" && bare && !bare.toLowerCase().includes("gemini")
+        ? bare.includes("/")
+          ? bare.split("/").pop()!
+          : bare
+        : DEFAULT_OLLAMA_MODEL;
+    const fb = pickFallback("ollama");
+    return {
+      model: ollamaModel(id),
+      providerLabel: `ollama:${id}`,
+      fallback: fb?.model,
+      fallbackLabel: fb?.label,
+    };
   }
 
   throw new Error("NO_PROVIDER");

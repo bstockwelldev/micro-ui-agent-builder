@@ -5,12 +5,20 @@ import { NextResponse } from "next/server";
 import { genuiSurfaceSchema } from "@repo/shared";
 
 import { buildSystemPromptFromFlow } from "@/lib/server/flow-prompt";
+import { augmentSystemWithFlowKnowledgeForQuery } from "@/lib/server/flow-knowledge-rag";
+import {
+  getFlowKnowledgeEntry,
+  readFlowKnowledgeRoot,
+} from "@/lib/server/flow-knowledge-store";
 import {
   missingProviderMessage,
   resolveLanguageModel,
+  resolveOllamaLanguageModel,
   type ResolvedLanguageModel,
 } from "@/lib/server/language-model";
+import { mergeAgentProfileIntoSystemPrompt } from "@/lib/server/agent-system-appendix";
 import {
+  getAgentById,
   getFlowById,
   readStudioStore,
 } from "@/lib/server/studio-store";
@@ -23,7 +31,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: envMissing }, { status: 503 });
   }
 
-  let body: { flowId?: string; instruction?: string };
+  let body: { flowId?: string; instruction?: string; agentId?: string };
   try {
     body = await req.json();
   } catch {
@@ -40,7 +48,19 @@ export async function POST(req: Request) {
 
   const store = await readStudioStore();
   const flow = getFlowById(store, body.flowId);
-  const baseSystem = buildSystemPromptFromFlow(flow, store);
+  let baseSystem = mergeAgentProfileIntoSystemPrompt(
+    buildSystemPromptFromFlow(flow, store),
+    getAgentById(store, body.agentId),
+  );
+  if (flow?.knowledgeBaseEnabled) {
+    const kbRoot = await readFlowKnowledgeRoot();
+    const kbEntry = getFlowKnowledgeEntry(kbRoot, flow.id);
+    baseSystem = await augmentSystemWithFlowKnowledgeForQuery(
+      baseSystem,
+      kbEntry,
+      userPrompt,
+    );
+  }
   const system = `${baseSystem}\n\n${genuiSystemExtra}`;
 
   const llmStep = flow?.steps.find((s) => s.type === "llm");
@@ -80,11 +100,34 @@ export async function POST(req: Request) {
     return object;
   }
 
+  function extraOllamaIfNeeded() {
+    if (resolved.providerLabel.startsWith("ollama:")) return null;
+    if (resolved.fallbackLabel?.startsWith("ollama:")) return null;
+    return resolveOllamaLanguageModel(llmStep?.model);
+  }
+
   try {
     const object = await run(resolved.model, resolved.providerLabel);
     return NextResponse.json({ surface: object });
   } catch (first) {
     if (!resolved.fallback || !resolved.fallbackLabel) {
+      const ollama = extraOllamaIfNeeded();
+      if (ollama) {
+        try {
+          const object = await run(ollama.model, ollama.providerLabel);
+          return NextResponse.json({
+            surface: object,
+            usedFallback: true,
+            fallbackProvider: ollama.providerLabel,
+          });
+        } catch (ollamaErr) {
+          const message =
+            ollamaErr instanceof Error
+              ? ollamaErr.message
+              : "generateObject failed";
+          return NextResponse.json({ error: message }, { status: 502 });
+        }
+      }
       const message =
         first instanceof Error ? first.message : "generateObject failed";
       return NextResponse.json({ error: message }, { status: 502 });
@@ -97,6 +140,21 @@ export async function POST(req: Request) {
         fallbackProvider: resolved.fallbackLabel,
       });
     } catch (second) {
+      const ollama = extraOllamaIfNeeded();
+      if (ollama) {
+        try {
+          const object = await run(ollama.model, ollama.providerLabel);
+          return NextResponse.json({
+            surface: object,
+            usedFallback: true,
+            fallbackProvider: ollama.providerLabel,
+          });
+        } catch (third) {
+          const message =
+            third instanceof Error ? third.message : "generateObject failed";
+          return NextResponse.json({ error: message }, { status: 502 });
+        }
+      }
       const message =
         second instanceof Error ? second.message : "generateObject failed";
       return NextResponse.json({ error: message }, { status: 502 });

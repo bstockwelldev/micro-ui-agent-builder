@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@bstockwelldev/prompt-guardrails-core": "file:../../../prompt-guardrails-core",
+    "@bstockwelldev/prompt-rubric": "file:../../../prompt-rubric",
     "@ai-sdk/gateway": "^3.0.80",
     "@ai-sdk/google": "^3.0.53",
     "@ai-sdk/groq": "^3.0.31",
