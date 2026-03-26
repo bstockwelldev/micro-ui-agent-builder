@@ -6,7 +6,10 @@ import {
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
-import { buildToolSetFromStore } from "@/lib/server/agent-tools";
+import {
+  buildToolCatalogAppendix,
+  buildToolSetFromStore,
+} from "@/lib/server/agent-tools";
 import {
   runFlowPreflight,
   stepsOrderedBeforeFirstLlm,
@@ -87,6 +90,9 @@ export async function POST(req: Request) {
   }
 
   const tools = buildToolSetFromStore(store);
+  if (Object.keys(tools).length > 0) {
+    system += buildToolCatalogAppendix(store);
+  }
 
   const llmStep =
     flow?.steps

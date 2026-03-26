@@ -3,6 +3,7 @@
 import { nanoid } from "nanoid";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import type { AgentProfile } from "@repo/shared";
 
 import { AgentProfileEditorDialog } from "@/components/studio/agent-profile-editor-dialog";
@@ -19,7 +20,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useStudioApi } from "@/hooks/use-studio-api";
-import { cn } from "@/lib/utils";
 
 export default function AgentsPage() {
   const { data, loading, error, refetch, saveStore, saving, saveError, clearSaveError } =
@@ -98,12 +98,33 @@ export default function AgentsPage() {
           <ul className="grid gap-5 sm:grid-cols-2">
             {agents.map((a) => (
               <li key={a.id}>
-                <Card>
+                <Card
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Edit agent ${a.name}`}
+                  className={cn(
+                    "ring-outline-variant/20 cursor-pointer transition-[box-shadow,ring-color] hover:ring-primary/30 focus-visible:ring-primary/50 border-outline-variant/25 border focus-visible:ring-2 focus-visible:outline-none",
+                  )}
+                  onClick={() => openEdit(a)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openEdit(a);
+                    }
+                  }}
+                >
                   <CardHeader>
                     <CardTitle className="text-base">{a.name}</CardTitle>
                     <CardDescription className="font-mono text-xs">{a.id}</CardDescription>
+                    <p className="text-muted-foreground pt-1 text-[11px]">
+                      Click card to edit · or use actions below
+                    </p>
                   </CardHeader>
-                  <CardContent className="space-y-2">
+                  <CardContent
+                    className="space-y-2"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
                     {a.description ? (
                       <p className="text-muted-foreground text-sm">{a.description}</p>
                     ) : null}

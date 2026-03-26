@@ -66,10 +66,22 @@ async function duckDuckGoInstantAnswer(query: string, maxTopics: number) {
   }
 }
 
+/** Empty `{}` JSON schemas confuse some providers into malformed tool names (e.g. `echo:{}`). */
+function catalogInputSchema(def: ToolDefinition) {
+  const t = (def.parametersJson ?? "").trim();
+  if (!t || t === "{}") {
+    return z.object({
+      message: z.string().optional().describe("Optional short text to echo or annotate"),
+      payload: z.record(z.string(), z.unknown()).optional(),
+    });
+  }
+  return z.record(z.unknown());
+}
+
 function catalogMockTool(def: ToolDefinition) {
   return dynamicTool({
     description: `${def.description} (catalog id: ${def.id})`,
-    inputSchema: z.record(z.unknown()),
+    inputSchema: catalogInputSchema(def),
     needsApproval: def.requiresApproval === true,
     execute: async (input) => ({
       toolId: def.id,
@@ -148,4 +160,11 @@ export function buildToolSetFromStore(store: StudioStore): ToolSet {
     tools[name] = builtin ?? catalogMockTool(def);
   }
   return tools;
+}
+
+/** Appended to system so models use SDK-registered names only (must match `buildToolSetFromStore` keys). */
+export function buildToolCatalogAppendix(store: StudioStore): string {
+  if (!store.tools.length) return "";
+  const names = store.tools.map((t) => toolNameFromId(t.id));
+  return `\n\n[Callable tools — call only these exact tool names: ${names.join(", ")}. Do not append JSON or colons to the name.]`;
 }

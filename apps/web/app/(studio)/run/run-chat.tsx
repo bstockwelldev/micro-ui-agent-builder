@@ -20,7 +20,14 @@ import { createAgentRunFetch } from "@/lib/agent-run-fetch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 type AddToolApprovalResponse = (args: {
   id: string;
@@ -152,6 +159,7 @@ export function RunChat({
   const [genuiMeta, setGenuiMeta] = useState<string | null>(null);
   const [preferOllama, setPreferOllama] = useState(false);
   const [logEntries, setLogEntries] = useState<AgentSessionLogEntry[]>([]);
+  const [conversationOpen, setConversationOpen] = useState(true);
 
   const appendLog = useCallback(
     (kind: AgentSessionLogEntry["kind"], message: string, detail?: unknown) => {
@@ -360,23 +368,29 @@ export function RunChat({
     </div>
   );
 
+  const conversationLayout = variant === "panel" ? "panel" : "drawer";
+
   const chatBlock = (
     <div
-      className={
-        variant === "panel"
-          ? "flex min-h-0 flex-1 flex-col gap-3"
-          : "flex min-h-[480px] flex-col gap-4"
-      }
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-3",
+        variant === "default" && "min-h-[320px]",
+      )}
     >
       {ollamaToggle}
       <ScrollArea
-        className={
-          variant === "panel"
-            ? "glass-panel ring-outline-variant/25 h-[min(32vh,280px)] min-h-[160px] rounded-lg p-3 ring-1 sm:h-[min(36vh,320px)]"
-            : "glass-panel ring-outline-variant/25 h-[min(60vh,520px)] rounded-lg p-4 ring-1"
-        }
+        className={cn(
+          "glass-panel ring-outline-variant/25 rounded-lg ring-1",
+          conversationLayout === "panel" &&
+            "h-[min(32vh,280px)] min-h-[160px] p-3 sm:h-[min(36vh,320px)]",
+          conversationLayout === "drawer" && "min-h-[200px] flex-1 p-4",
+        )}
       >
-        <div className={variant === "panel" ? "space-y-3 pr-2" : "space-y-4 pr-3"}>
+        <div
+          className={cn(
+            conversationLayout === "panel" ? "space-y-3 pr-2" : "space-y-4 pr-3",
+          )}
+        >
           {messages.map((m) => (
             <article
               key={m.id}
@@ -398,7 +412,7 @@ export function RunChat({
             <p className="text-muted-foreground text-sm">
               {variant === "panel"
                 ? "Test this flow without leaving the canvas. Same API as the Runner page."
-                : "Send a message to run the agent with the selected flow and catalog tools."}
+                : "Send a message to run the agent with the selected flow and catalog tools. Use exact tool names from the catalog (e.g. echo, web_search)."}
             </p>
           )}
         </div>
@@ -458,53 +472,76 @@ export function RunChat({
 
   return (
     <>
-    <Tabs defaultValue="chat" className="w-full">
-      <TabsList variant="line" className="w-full max-w-md">
-        <TabsTrigger value="chat">Chat</TabsTrigger>
-        <TabsTrigger value="genui">Structured UI preview</TabsTrigger>
-      </TabsList>
-      <TabsContent value="chat" className="mt-4">
-        {chatBlock}
-      </TabsContent>
-      <TabsContent value="genui" className="mt-4 space-y-4">
-        <p className="text-muted-foreground text-sm">
-          Generates a validated component tree via{" "}
-          <code className="text-xs">POST /api/agent/genui</code> (same flow
-          system prompt + structured output). Cloud providers are tried first;
-          the route can fall back (including Ollama when{" "}
-          <code className="text-xs">OLLAMA_BASE_URL</code> is set).
-        </p>
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium" htmlFor="genui-instruction">
-            Instruction
-          </label>
-          <textarea
-            id="genui-instruction"
-            className="ghost-border bg-surface-container-low/50 focus-visible:ring-ring min-h-[100px] w-full rounded-md border px-3 py-2 font-mono text-sm outline-none transition-expressive focus-visible:ring-2"
-            value={genuiPrompt}
-            onChange={(e) => setGenuiPrompt(e.target.value)}
-            disabled={genuiBusy}
-          />
+      {!conversationOpen ? (
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             type="button"
+            size="sm"
             variant="synth"
-            disabled={genuiBusy || !genuiPrompt.trim()}
-            onClick={() => void generateGenui()}
+            onClick={() => setConversationOpen(true)}
           >
-            {genuiBusy ? "Generating…" : "Generate structured UI"}
+            Open conversation
           </Button>
+          {messages.length > 0 ? (
+            <span className="text-muted-foreground text-xs">
+              {messages.length} message{messages.length === 1 ? "" : "s"} in session
+            </span>
+          ) : null}
         </div>
-        {genuiError ? (
-          <p className="text-destructive text-sm" role="alert">
-            {genuiError}
-          </p>
-        ) : null}
-        {genuiMeta ? (
-          <p className="text-muted-foreground text-xs">{genuiMeta}</p>
-        ) : null}
-        {genuiSurface ? <GenuiSurfaceView surface={genuiSurface} /> : null}
-      </TabsContent>
-    </Tabs>
+      ) : null}
+      <Sheet open={conversationOpen} onOpenChange={setConversationOpen}>
+        <SheetContent
+          side="right"
+          className="border-outline-variant/30 flex h-full max-h-[100dvh] min-h-0 w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+        >
+          <SheetHeader className="border-outline-variant/20 shrink-0 space-y-1 border-b px-4 py-4">
+            <SheetTitle>Conversation</SheetTitle>
+            <SheetDescription>
+              Chat uses the active flow, merged agent profile (if any), and studio tool catalog.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-4">{chatBlock}</div>
+        </SheetContent>
+      </Sheet>
+    <section className="mt-8 space-y-4">
+      <h2 className="text-sm font-medium">Structured UI preview</h2>
+      <p className="text-muted-foreground text-sm">
+        Generates a validated component tree via{" "}
+        <code className="text-xs">POST /api/agent/genui</code> (same flow system
+        prompt + structured output). Cloud providers are tried first; the route
+        can fall back (including Ollama when{" "}
+        <code className="text-xs">OLLAMA_BASE_URL</code> is set).
+      </p>
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium" htmlFor="genui-instruction">
+          Instruction
+        </label>
+        <textarea
+          id="genui-instruction"
+          className="ghost-border bg-surface-container-low/50 focus-visible:ring-ring min-h-[100px] w-full rounded-md border px-3 py-2 font-mono text-sm outline-none transition-expressive focus-visible:ring-2"
+          value={genuiPrompt}
+          onChange={(e) => setGenuiPrompt(e.target.value)}
+          disabled={genuiBusy}
+        />
+        <Button
+          type="button"
+          variant="synth"
+          disabled={genuiBusy || !genuiPrompt.trim()}
+          onClick={() => void generateGenui()}
+        >
+          {genuiBusy ? "Generating…" : "Generate structured UI"}
+        </Button>
+      </div>
+      {genuiError ? (
+        <p className="text-destructive text-sm" role="alert">
+          {genuiError}
+        </p>
+      ) : null}
+      {genuiMeta ? (
+        <p className="text-muted-foreground text-xs">{genuiMeta}</p>
+      ) : null}
+      {genuiSurface ? <GenuiSurfaceView surface={genuiSurface} /> : null}
+    </section>
     <div className="mt-6">
       <AgentSessionLog
         entries={logEntries}

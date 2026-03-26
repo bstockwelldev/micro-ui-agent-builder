@@ -163,44 +163,32 @@ export default function ToolsPage() {
               const st = toolStatusById(statusPayload, t.id);
               return (
               <li key={t.id}>
-                <Card>
+                <Card
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Edit tool ${t.id}`}
+                  className={cn(
+                    "ring-outline-variant/20 cursor-pointer transition-[box-shadow,ring-color] hover:ring-primary/30 focus-visible:ring-primary/50 border-outline-variant/25 border focus-visible:ring-2 focus-visible:outline-none",
+                  )}
+                  onClick={() => openEdit(t)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openEdit(t);
+                    }
+                  }}
+                >
                   <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <CardTitle className="font-mono text-base">{t.id}</CardTitle>
-                        {statusLoading ? (
-                          <span className="text-muted-foreground text-[10px]">…</span>
-                        ) : st ? (
-                          <StudioResourceStatusBadge state={st.state} note={st.note} />
-                        ) : null}
-                        {t.requiresApproval ? (
-                          <Badge variant="outline">Approval</Badge>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={saving || !data}
-                          onClick={() => openEdit(t)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:bg-destructive/10"
-                          disabled={saving || !data}
-                          onClick={() => {
-                            clearSaveError();
-                            setDeleteTarget(t);
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="font-mono text-base">{t.id}</CardTitle>
+                      {statusLoading ? (
+                        <span className="text-muted-foreground text-[10px]">…</span>
+                      ) : st ? (
+                        <StudioResourceStatusBadge state={st.state} note={st.note} />
+                      ) : null}
+                      {t.requiresApproval ? (
+                        <Badge variant="outline">Approval</Badge>
+                      ) : null}
                     </div>
                     <CardDescription>
                       {t.description}
@@ -210,8 +198,39 @@ export default function ToolsPage() {
                         </span>
                       ) : null}
                     </CardDescription>
+                    <p className="text-muted-foreground pt-1 text-[11px]">
+                      Click card to edit · or use actions below
+                    </p>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent
+                    className="space-y-3"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={saving || !data}
+                        onClick={() => openEdit(t)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive hover:bg-destructive/10"
+                        disabled={saving || !data}
+                        onClick={() => {
+                          clearSaveError();
+                          setDeleteTarget(t);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                     <pre className="bg-surface-container-lowest/90 max-h-36 overflow-auto rounded-lg p-2 font-mono text-[11px] ring-1 ring-outline-variant/20">
                       {t.parametersJson}
                     </pre>

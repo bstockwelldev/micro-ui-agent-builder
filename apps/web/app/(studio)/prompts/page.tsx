@@ -115,40 +115,57 @@ export default function PromptsPage() {
           <ul className="space-y-4">
             {prompts.map((p) => (
               <li key={p.id}>
-                <Card>
+                <Card
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Edit prompt ${p.name}`}
+                  className={cn(
+                    "ring-outline-variant/20 cursor-pointer transition-[box-shadow,ring-color] hover:ring-primary/30 focus-visible:ring-primary/50 border-outline-variant/25 border focus-visible:ring-2 focus-visible:outline-none",
+                  )}
+                  onClick={() => openEdit(p)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openEdit(p);
+                    }
+                  }}
+                >
                   <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <CardTitle className="text-base">{p.name}</CardTitle>
-                        <CardDescription className="font-mono text-xs">{p.id}</CardDescription>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={saving || !data}
-                          onClick={() => openEdit(p)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:bg-destructive/10"
-                          disabled={saving || !data}
-                          onClick={() => {
-                            clearSaveError();
-                            setDeleteTarget(p);
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
+                    <CardTitle className="text-base">{p.name}</CardTitle>
+                    <CardDescription className="font-mono text-xs">{p.id}</CardDescription>
+                    <p className="text-muted-foreground pt-1 text-[11px]">
+                      Click card to edit · or use actions below
+                    </p>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent
+                    className="space-y-3"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={saving || !data}
+                        onClick={() => openEdit(p)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive hover:bg-destructive/10"
+                        disabled={saving || !data}
+                        onClick={() => {
+                          clearSaveError();
+                          setDeleteTarget(p);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                     <pre className="bg-surface-container-lowest/90 max-h-48 overflow-auto rounded-lg p-3 font-mono text-xs whitespace-pre-wrap ring-1 ring-outline-variant/20">
                       {p.body}
                     </pre>

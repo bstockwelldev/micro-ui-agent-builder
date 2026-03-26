@@ -79,14 +79,16 @@ export function seedStudioStore(): StudioStore {
       {
         id: "echo",
         description: "Echo the provided payload for testing tool wiring.",
-        parametersJson: "{}",
+        parametersJson:
+          '{"type":"object","properties":{"message":{"type":"string","description":"Optional text to echo"},"payload":{"type":"object","additionalProperties":true,"description":"Arbitrary JSON payload"}},"additionalProperties":false}',
         requiresApproval: false,
       },
       {
         id: "destructive_demo",
         description:
           "Simulated sensitive action. In the prototype this requires human approval before execution.",
-        parametersJson: "{}",
+        parametersJson:
+          '{"type":"object","properties":{"reason":{"type":"string","description":"Why the action is requested"}},"additionalProperties":false}',
         requiresApproval: true,
       },
     ],
