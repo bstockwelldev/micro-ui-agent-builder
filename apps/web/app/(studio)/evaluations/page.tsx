@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { useState } from "react";
 import type { LlmProfile } from "@repo/shared";
 
+import { LlmProfileEditorDialog } from "@/components/studio/llm-profile-editor-dialog";
 import { StudioConfirmDialog } from "@/components/studio/studio-confirm-dialog";
 import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
@@ -16,23 +17,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StudioResourceStatusBadge } from "@/components/studio/studio-resource-status-badge";
 import { useStudioApi } from "@/hooks/use-studio-api";
 import { useStudioResourceStatus } from "@/hooks/use-studio-resource-status";
 import { llmProfileStatusById } from "@/lib/studio-resource-status-helpers";
-import { cn } from "@/lib/utils";
 
 const checks = [
   { name: "Prompt injection shield", coverage: "Flows + Run", state: "planned" as const },
@@ -53,40 +42,24 @@ export default function EvaluationsPage() {
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<LlmProfile | null>(null);
-  const [formId, setFormId] = useState("");
-  const [formName, setFormName] = useState("");
-  const [formModel, setFormModel] = useState("");
-  const [formDescription, setFormDescription] = useState("");
+  const [newLlmProfileId, setNewLlmProfileId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<LlmProfile | null>(null);
 
   function openCreate() {
     clearSaveError();
     setEditing(null);
-    setFormId(`llm_${nanoid(8)}`);
-    setFormName("");
-    setFormModel("gemini-2.5-flash-lite");
-    setFormDescription("");
+    setNewLlmProfileId(`llm_${nanoid(8)}`);
     setEditorOpen(true);
   }
 
   function openEdit(p: LlmProfile) {
     clearSaveError();
     setEditing(p);
-    setFormId(p.id);
-    setFormName(p.name);
-    setFormModel(p.model);
-    setFormDescription(p.description ?? "");
     setEditorOpen(true);
   }
 
-  async function handleSave() {
-    if (!data || !formId.trim() || !formName.trim() || !formModel.trim()) return;
-    const row: LlmProfile = {
-      id: formId.trim(),
-      name: formName.trim(),
-      model: formModel.trim(),
-      description: formDescription.trim() || undefined,
-    };
+  async function handleSaveLlmProfile(row: LlmProfile) {
+    if (!data) return;
     const next = editing
       ? data.llmProfiles.map((x) => (x.id === editing.id ? row : x))
       : data.llmProfiles.some((x) => x.id === row.id)
@@ -275,74 +248,16 @@ export default function EvaluationsPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit LLM profile" : "New LLM profile"}</DialogTitle>
-            <DialogDescription>
-              Use the same model identifier as flow LLM steps (e.g. gemini-2.5-flash-lite).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="llm-id">Id</Label>
-              <Input
-                id="llm-id"
-                value={formId}
-                onChange={(e) => setFormId(e.target.value)}
-                disabled={Boolean(editing)}
-                className={cn("font-mono text-sm", editing && "opacity-80")}
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="llm-name">Display name</Label>
-              <Input
-                id="llm-name"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="llm-model">Model</Label>
-              <Input
-                id="llm-model"
-                value={formModel}
-                onChange={(e) => setFormModel(e.target.value)}
-                autoComplete="off"
-                className="font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="llm-desc">Description (optional)</Label>
-              <Textarea
-                id="llm-desc"
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
-            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
-              <Button type="button" variant="outline" onClick={() => setEditorOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="synth"
-                disabled={
-                  !formId.trim() || !formName.trim() || !formModel.trim() || saving
-                }
-                onClick={() => void handleSave()}
-              >
-                {saving ? "Saving…" : "Save"}
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LlmProfileEditorDialog
+        key={editing?.id ?? newLlmProfileId}
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        editing={editing}
+        newProfileId={newLlmProfileId}
+        defaultModel="gemini-2.5-flash-lite"
+        saving={saving}
+        onSave={(row) => void handleSaveLlmProfile(row)}
+      />
 
       <StudioConfirmDialog
         open={deleteTarget !== null}

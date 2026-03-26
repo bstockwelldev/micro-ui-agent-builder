@@ -17,12 +17,10 @@ import {
   providerStateForModelRef,
   toolStatusById,
 } from "@/lib/studio-resource-status-helpers";
-
-const PROVIDERS = [
-  "Google Gemini (Vertex AI)",
-  "OpenAI GPT-4o",
-  "Anthropic Claude 3.5",
-] as const;
+import {
+  STUDIO_LLM_PROVIDERS,
+  coerceStudioLlmProviderLabel,
+} from "@/lib/studio-llm-providers";
 
 const TOOL_CHOICE_OPTIONS: { value: FlowToolChoice; label: string; hint: string }[] =
   [
@@ -43,13 +41,6 @@ type PanelProps = {
   onClose: () => void;
   onApply: (patch: Partial<FlowStep>) => void;
 };
-
-function inferProvider(model: string | undefined): string {
-  if (!model) return PROVIDERS[0];
-  if (model.includes("gpt")) return "OpenAI GPT-4o";
-  if (model.includes("claude")) return "Anthropic Claude 3.5";
-  return "Google Gemini (Vertex AI)";
-}
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -101,7 +92,9 @@ export function FlowNodeConfigPanel({
     if (!step) return;
     setRefId(step.refId ?? "");
     setContent(step.content ?? "");
-    setProvider(step.modelProvider ?? inferProvider(step.model));
+    setProvider(
+      coerceStudioLlmProviderLabel(step.modelProvider, step.model),
+    );
     setModel(step.model ?? "");
     setTemperature(step.temperature ?? 0.7);
     setMaxTokens(step.maxTokens ?? 4096);
@@ -232,7 +225,7 @@ export function FlowNodeConfigPanel({
                 value={provider}
                 onChange={(e) => setProvider(e.target.value)}
               >
-                {PROVIDERS.map((p) => (
+                {STUDIO_LLM_PROVIDERS.map((p) => (
                   <option key={p} value={p}>
                     {p}
                   </option>

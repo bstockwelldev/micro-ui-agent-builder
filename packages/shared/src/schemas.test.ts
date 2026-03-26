@@ -175,10 +175,12 @@ describe("studioStoreSchema", () => {
           id: "l1",
           name: "Fast",
           model: "gemini-2.5-flash-lite",
+          modelProvider: "Google Gemini (Vertex AI)",
         },
       ],
     });
     expect(s.agents).toHaveLength(1);
     expect(s.llmProfiles[0]?.model).toBe("gemini-2.5-flash-lite");
+    expect(s.llmProfiles[0]?.modelProvider).toBe("Google Gemini (Vertex AI)");
   });
 });

@@ -20,3 +20,8 @@ export function getStoreFilePath(): string {
 export function getFlowKnowledgeFilePath(): string {
   return path.join(getDataDir(), "flow-knowledge.json");
 }
+
+/** Append-only run completions for Analytics & ROI (local /tmp on Vercel). */
+export function getRunAnalyticsPath(): string {
+  return path.join(getDataDir(), "run-analytics.jsonl");
+}

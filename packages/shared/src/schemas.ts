@@ -133,6 +133,8 @@ export const llmProfileSchema = z.object({
   name: z.string().min(1),
   /** Model ref string (same convention as flow LLM steps, e.g. gemini-2.5-flash-lite). */
   model: z.string().min(1),
+  /** Display / routing label aligned with flow LLM steps (e.g. Google Gemini). */
+  modelProvider: z.string().optional(),
   description: z.string().optional(),
 });
 

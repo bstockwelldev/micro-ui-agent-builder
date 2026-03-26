@@ -23,6 +23,9 @@ import {
   resolveOllamaLanguageModel,
 } from "@/lib/server/language-model";
 import { mergeAgentProfileIntoSystemPrompt } from "@/lib/server/agent-system-appendix";
+import { estimateUsdFromUsage } from "@/lib/server/estimate-llm-spend";
+import { appendRunAnalyticsRecord } from "@/lib/server/run-analytics-store";
+import { RUN_ANALYTICS_V1 } from "@/lib/server/run-analytics-types";
 import {
   getAgentById,
   getFlowById,
@@ -136,6 +139,20 @@ export async function POST(req: Request) {
     topP: llmStep?.topP,
     toolChoice: llmStep?.toolChoice,
     onFinish: (event) => {
+      const usage = event.usage;
+      const inputTokens = usage.inputTokens ?? 0;
+      const outputTokens = usage.outputTokens ?? 0;
+      const totalTokens =
+        usage.totalTokens ?? inputTokens + outputTokens;
+      const modelRefForPricing = modelRef ?? "";
+      const estimatedUsd = estimateUsdFromUsage({
+        providerLabel: resolved.providerLabel,
+        modelRef: modelRefForPricing,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+      });
+
       console.log(
         JSON.stringify({
           event: "agent_run_finish",
@@ -149,6 +166,24 @@ export async function POST(req: Request) {
           finishReason: event.finishReason,
         }),
       );
+
+      void appendRunAnalyticsRecord({
+        v: RUN_ANALYTICS_V1,
+        runId,
+        at: new Date().toISOString(),
+        flowId: body.flowId ?? null,
+        agentId: body.agentId ?? null,
+        modelRef: modelRef ?? null,
+        providerLabel: resolved.providerLabel,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        estimatedUsd,
+        durationMs: Date.now() - t0,
+        finishReason: String(event.finishReason ?? ""),
+      }).catch((err) => {
+        console.error("[run-analytics] append failed", err);
+      });
     },
   });
 

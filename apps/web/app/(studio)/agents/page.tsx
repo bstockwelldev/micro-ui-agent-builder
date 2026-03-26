@@ -10,7 +10,7 @@ import { StudioApiStatusBanners } from "@/components/studio/studio-api-status-ba
 import { StudioConfirmDialog } from "@/components/studio/studio-confirm-dialog";
 import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -19,15 +19,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useStudioApi } from "@/hooks/use-studio-api";
+import { cn } from "@/lib/utils";
 
 export default function AgentsPage() {
   const { data, loading, error, refetch, saveStore, saving, saveError, clearSaveError } =
     useStudioApi();
   const agents = data?.agents ?? [];
-  const flows = data?.flows ?? [];
   const flowOptions = useMemo(
-    () => flows.map((f) => ({ id: f.id, name: f.name })),
-    [flows],
+    () => (data?.flows ?? []).map((f) => ({ id: f.id, name: f.name })),
+    [data?.flows],
   );
 
   const [editorOpen, setEditorOpen] = useState(false);
@@ -136,13 +136,12 @@ export default function AgentsPage() {
                         Edit
                       </Button>
                       {a.defaultFlowId ? (
-                        <Button type="button" size="sm" variant="outline" asChild>
-                          <Link
-                            href={`/run?flowId=${encodeURIComponent(a.defaultFlowId)}&agentId=${encodeURIComponent(a.id)}`}
-                          >
-                            Run with agent
-                          </Link>
-                        </Button>
+                        <Link
+                          href={`/run?flowId=${encodeURIComponent(a.defaultFlowId)}&agentId=${encodeURIComponent(a.id)}`}
+                          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                        >
+                          Run with agent
+                        </Link>
                       ) : null}
                       <Button
                         type="button"

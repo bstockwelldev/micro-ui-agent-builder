@@ -58,6 +58,20 @@ export function RunSection() {
               </>
             )}
           </p>
+          {agentId ? (
+            <p className="text-muted-foreground text-xs">
+              Agent profile:{" "}
+              <code className="text-foreground font-mono">{agentId}</code>
+              {selectedAgent?.name ? (
+                <span className="text-foreground/90"> — {selectedAgent.name}</span>
+              ) : !loading && data ? (
+                <span className="text-amber-600/90 dark:text-amber-400/90">
+                  {" "}
+                  (not in studio store)
+                </span>
+              ) : null}
+            </p>
+          ) : null}
           <p className="text-muted-foreground text-xs">
             Past runs appear in{" "}
             <Link href="/history" className="text-primary underline-offset-4 hover:underline">
