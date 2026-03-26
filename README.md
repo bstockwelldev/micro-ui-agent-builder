@@ -12,7 +12,7 @@ pnpm monorepo: **`@repo/shared`** (Zod schemas) + **Next.js 15** app in `apps/we
 ```bash
 pnpm install
 cp apps/web/.env.example apps/web/.env.local
-# Set OPENAI_API_KEY in apps/web/.env.local
+# Set at least one LLM key in apps/web/.env.local (GROQ_API_KEY preferred)
 ```
 
 ## Scripts (repo root)
@@ -27,7 +27,7 @@ cp apps/web/.env.example apps/web/.env.local
 
 ## Environment
 
-See **`apps/web/.env.example`**. The agent route requires **`OPENAI_API_KEY`** for `POST /api/agent/run`.
+See **`apps/web/.env.example`**. **`POST /api/agent/run`** and **`POST /api/agent/genui`** need at least one of **`GROQ_API_KEY`** (preferred), **`GOOGLE_GENERATIVE_AI_API_KEY`** / **`GEMINI_API_KEY`**, **`OPENAI_API_KEY`**, or **`AI_GATEWAY_API_KEY`** (Vercel AI Gateway only).
 
 Optional Supabase (same project as **Tabletop Studio**): set **`NEXT_PUBLIC_SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (server-only). The app then reads/writes the studio document in Postgres schema **`agent_builder`** (`studio_snapshots`, id **`default`**) instead of the local file. RLS blocks **`anon`** / **`authenticated`**; the service role key bypasses RLS and must never be exposed to the browser. **`POST /api/studio/backup`** uploads JSON to the private Storage bucket **`agent-builder`** and inserts a row in **`agent_builder.studio_artifacts`**. The migration file lives in the Tabletop Studio repo: **`supabase/migrations/20260325195000_agent_builder_schema_and_storage.sql`**.
 
@@ -45,7 +45,7 @@ Optional Supabase (same project as **Tabletop Studio**): set **`NEXT_PUBLIC_SUPA
 2. In the [Vercel dashboard](https://vercel.com/new), **Import** the repository.
 3. Set **Root Directory** to **`apps/web`**.
 4. Framework preset: **Next.js**. Leave install/build overrides empty unless you need to change them—the repo’s `vercel.json` supplies the monorepo commands.
-5. Add **Environment variables**: `OPENAI_API_KEY` (Production + Preview as needed). For durable studio state, add **`NEXT_PUBLIC_SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (same Tabletop Studio Supabase project; apply migration from that repo if not already applied).
+5. Add **Environment variables**: at least one LLM key (e.g. **`GROQ_API_KEY`**). For durable studio state, add **`NEXT_PUBLIC_SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (same Tabletop Studio Supabase project; apply migration from that repo if not already applied).
 6. Deploy.
 
 ### Vercel CLI
@@ -78,7 +78,7 @@ Non-interactive example:
 
 `vercel deploy --yes --scope brandon-stockwells-projects --prod`
 
-Set **`OPENAI_API_KEY`** in the dashboard or with `vercel env add OPENAI_API_KEY`.
+Set an LLM key in the dashboard (e.g. `vercel env add GROQ_API_KEY`).
 
 The root **`package.json`** includes **`packageManager`** (`pnpm@9.x`) so Vercel can use pnpm consistently with the lockfile.
 
@@ -88,9 +88,10 @@ The root **`package.json`** includes **`packageManager`** (`pnpm@9.x`) so Vercel
 |--------|------|--------|
 | GET/PUT | `/api/studio` | Read/write full studio store (Zod-validated on PUT) |
 | POST | `/api/studio/backup` | JSON backup to Storage + `studio_artifacts` (requires Supabase env) |
-| POST | `/api/agent/run` | Streaming chat; body `{ messages, flowId? }` |
+| POST | `/api/agent/run` | Streaming chat; body `{ messages, flowId? }` (Groq → Google → OpenAI resolution; usage logged on finish) |
+| POST | `/api/agent/genui` | Structured UI tree; body `{ instruction, flowId? }` (`generateObject` + shared Zod schema; optional provider fallback) |
 | POST | `/api/agent/approve` | Stub: clears a `pausedRuns` session |
-| POST | `/api/mcp/proxy` | Stub: **501** |
+| POST | `/api/mcp/proxy` | Forwards JSON to registered **`http`** MCP URLs; body `{ mcpServerId, request }` |
 
 ## License
 

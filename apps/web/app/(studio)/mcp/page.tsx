@@ -22,8 +22,11 @@ export default function McpPage() {
         title="MCP"
         description={
           <>
-            Registered MCP server endpoints (proxy is a stub —{" "}
-            <code className="text-xs">POST /api/mcp/proxy</code> returns 501).
+            Registered MCP servers.{" "}
+            <code className="text-xs">POST /api/mcp/proxy</code> forwards JSON
+            to <code className="text-xs">transport=http</code> URLs (JSON body{" "}
+            <code className="text-xs">mcpServerId</code> +{" "}
+            <code className="text-xs">request</code>).
           </>
         }
         loading={loading}

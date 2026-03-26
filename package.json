@@ -7,7 +7,7 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter shared build && pnpm --filter web build",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm --filter @repo/shared build && pnpm -r typecheck",
     "test": "pnpm --filter shared test"
   },
   "engines": {

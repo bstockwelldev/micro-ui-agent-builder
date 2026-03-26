@@ -52,6 +52,18 @@ export default function FlowsPage() {
                   <CardContent className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">{flow.steps.length} steps</Badge>
                     <Link
+                      href={`/flows/${encodeURIComponent(flow.id)}`}
+                      className="text-primary text-sm font-medium underline-offset-4 hover:underline"
+                    >
+                      Diagram
+                    </Link>
+                    <Link
+                      href={`/flows/${encodeURIComponent(flow.id)}/edit`}
+                      className="text-primary text-sm font-medium underline-offset-4 hover:underline"
+                    >
+                      Edit layout
+                    </Link>
+                    <Link
                       href={`/run?flowId=${encodeURIComponent(flow.id)}`}
                       className="text-primary text-sm font-medium underline-offset-4 hover:underline"
                     >

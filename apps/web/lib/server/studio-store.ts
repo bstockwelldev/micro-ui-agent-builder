@@ -18,17 +18,34 @@ export function seedStudioStore(): StudioStore {
   const demoFlow: FlowDocument = {
     id: "flow_demo",
     name: "Demo linear flow",
-    description: "System prompt → user context → LLM with catalog tools",
+    description: "System prompt → user context → LLM with catalog tools (Groq default when GROQ_API_KEY is set)",
     updatedAt: now,
     steps: [
-      { id: "s0", type: "system", refId: "sys_studio", order: 0 },
+      {
+        id: "s0",
+        type: "system",
+        refId: "sys_studio",
+        order: 0,
+        position: { x: 0, y: 100 },
+      },
       {
         id: "s1",
         type: "user",
         order: 1,
         content: "The user is testing flows in the Agent Builder studio.",
+        position: { x: 240, y: 100 },
       },
-      { id: "s2", type: "llm", order: 2, model: "gpt-4o-mini" },
+      {
+        id: "s2",
+        type: "llm",
+        order: 2,
+        model: "llama-3.3-70b-versatile",
+        position: { x: 480, y: 100 },
+      },
+    ],
+    edges: [
+      { id: "e_s0_s1", source: "s0", target: "s1" },
+      { id: "e_s1_s2", source: "s1", target: "s2" },
     ],
   };
   return {

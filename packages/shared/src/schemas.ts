@@ -11,6 +11,14 @@ export const flowNodeTypeSchema = z.enum([
 
 export type FlowNodeType = z.infer<typeof flowNodeTypeSchema>;
 
+export const flowEdgeSchema = z.object({
+  id: z.string().min(1),
+  source: z.string().min(1),
+  target: z.string().min(1),
+});
+
+export type FlowEdge = z.infer<typeof flowEdgeSchema>;
+
 export const flowStepSchema = z.object({
   id: z.string().min(1),
   type: flowNodeTypeSchema,
@@ -19,6 +27,8 @@ export const flowStepSchema = z.object({
   content: z.string().optional(),
   model: z.string().optional(),
   order: z.number().int().nonnegative(),
+  /** Canvas position for the flow builder (XYFlow). */
+  position: z.object({ x: z.number(), y: z.number() }).optional(),
 });
 
 export type FlowStep = z.infer<typeof flowStepSchema>;
@@ -28,6 +38,8 @@ export const flowDocumentSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   steps: z.array(flowStepSchema),
+  /** Custom edges; when omitted, the UI derives a linear chain from step order. */
+  edges: z.array(flowEdgeSchema).optional(),
   updatedAt: z.string().datetime().optional(),
 });
 
@@ -98,4 +110,83 @@ export function parseFlowDocument(input: unknown): FlowDocument {
 
 export function parseStudioStore(input: unknown): StudioStore {
   return studioStoreSchema.parse(input) as StudioStore;
+}
+
+/** Recursive GenUI surface node (AI SDK structured output). */
+export type GenuiNode =
+  | {
+      type: "Stack";
+      id?: string;
+      props?: { gap?: number; direction?: "col" | "row" };
+      children: GenuiNode[];
+    }
+  | { type: "Text"; id?: string; props: { content: string } }
+  | {
+      type: "Button";
+      id: string;
+      props: { label: string; actionId?: string };
+    }
+  | {
+      type: "Card";
+      id?: string;
+      props?: { title?: string };
+      children?: GenuiNode[];
+    }
+  | {
+      type: "FormField";
+      id: string;
+      props: { label: string; inputType?: "text" | "number" };
+    };
+
+export const genuiNodeSchema: z.ZodType<GenuiNode> = z.lazy(() =>
+  z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("Stack"),
+      id: z.string().optional(),
+      props: z
+        .object({
+          gap: z.number().optional(),
+          direction: z.enum(["col", "row"]).optional(),
+        })
+        .optional(),
+      children: z.array(genuiNodeSchema),
+    }),
+    z.object({
+      type: z.literal("Text"),
+      id: z.string().optional(),
+      props: z.object({ content: z.string() }),
+    }),
+    z.object({
+      type: z.literal("Button"),
+      id: z.string(),
+      props: z.object({
+        label: z.string(),
+        actionId: z.string().optional(),
+      }),
+    }),
+    z.object({
+      type: z.literal("Card"),
+      id: z.string().optional(),
+      props: z.object({ title: z.string().optional() }).optional(),
+      children: z.array(genuiNodeSchema).optional(),
+    }),
+    z.object({
+      type: z.literal("FormField"),
+      id: z.string(),
+      props: z.object({
+        label: z.string(),
+        inputType: z.enum(["text", "number"]).optional(),
+      }),
+    }),
+  ]),
+);
+
+export const genuiSurfaceSchema = z.object({
+  root: genuiNodeSchema,
+});
+
+export type GenuiSurface = z.infer<typeof genuiSurfaceSchema>;
+
+export function parseGenuiSurface(input: unknown): GenuiSurface {
+  return genuiSurfaceSchema.parse(input);
 }
