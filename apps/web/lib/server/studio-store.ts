@@ -18,7 +18,8 @@ export function seedStudioStore(): StudioStore {
   const demoFlow: FlowDocument = {
     id: "flow_demo",
     name: "Demo linear flow",
-    description: "System prompt → user context → LLM with catalog tools (Groq default when GROQ_API_KEY is set)",
+    description:
+      "System prompt → user context → LLM with catalog tools (Gemini 2.5 Flash Lite default when a Google/Gemini key is set)",
     updatedAt: now,
     steps: [
       {
@@ -39,7 +40,7 @@ export function seedStudioStore(): StudioStore {
         id: "s2",
         type: "llm",
         order: 2,
-        model: "llama-3.3-70b-versatile",
+        model: "gemini-2.5-flash-lite",
         position: { x: 480, y: 100 },
       },
     ],

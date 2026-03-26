@@ -8,8 +8,9 @@ export default function RunPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Run</h1>
         <p className="text-muted-foreground text-sm">
-          Chat uses <code className="text-xs">/api/agent/run</code> (Groq-first
-          model resolution when keys are set). Use{" "}
+          Chat uses <code className="text-xs">/api/agent/run</code> (Gemini-first
+          when a Google/Gemini key is set; use <code className="text-xs">groq/…</code>{" "}
+          in the flow for Groq). Use{" "}
           <code className="text-xs">flowId</code> from the query string. The
           Structured UI preview tab calls{" "}
           <code className="text-xs">/api/agent/genui</code>. Tools that

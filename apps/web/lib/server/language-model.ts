@@ -5,7 +5,8 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
 export const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
-export const DEFAULT_GOOGLE_MODEL = "gemini-2.0-flash";
+/** Default for auto / bare ids — supports JSON schema structured outputs (e.g. GenUI). */
+export const DEFAULT_GOOGLE_MODEL = "gemini-2.5-flash-lite";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 /** Vercel AI Gateway default when that is the only configured key */
 const DEFAULT_GATEWAY_MODEL = "meta/llama-3.3-70b";
@@ -17,12 +18,19 @@ export type ProviderEnv = {
   hasGateway: boolean;
 };
 
+function getGoogleApiKey(): string | undefined {
+  const k =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ||
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_GENAI_API_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
+  return k || undefined;
+}
+
 export function getProviderEnv(): ProviderEnv {
   return {
     hasGroq: Boolean(process.env.GROQ_API_KEY?.trim()),
-    hasGoogle: Boolean(
-      (process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY)?.trim(),
-    ),
+    hasGoogle: Boolean(getGoogleApiKey()),
     hasOpenAI: Boolean(process.env.OPENAI_API_KEY?.trim()),
     hasGateway: Boolean(process.env.AI_GATEWAY_API_KEY?.trim()),
   };
@@ -33,8 +41,8 @@ export function missingProviderMessage(): string {
   if (e.hasGroq || e.hasGoogle || e.hasOpenAI || e.hasGateway) return "";
   return [
     "No LLM API key configured.",
-    "Set one of: GROQ_API_KEY (preferred), GOOGLE_GENERATIVE_AI_API_KEY or GEMINI_API_KEY,",
-    "OPENAI_API_KEY, or AI_GATEWAY_API_KEY (Vercel AI Gateway).",
+    "Set one of: GOOGLE_GENERATIVE_AI_API_KEY, GEMINI_API_KEY, or NEXT_PUBLIC_GEMINI_API_KEY (preferred for structured outputs),",
+    "GROQ_API_KEY, OPENAI_API_KEY, or AI_GATEWAY_API_KEY (Vercel AI Gateway).",
   ].join(" ");
 }
 
@@ -67,7 +75,14 @@ function parseModelRef(requested?: string): {
   ) {
     return { provider: "openai", modelId: raw };
   }
-  return { provider: "groq", modelId: raw || DEFAULT_GROQ_MODEL };
+  // Bare ids: Groq-style names vs default to Gemini (json_schema / structured outputs).
+  if (
+    /^(llama|meta-|mixtral|mistral|qwen|deepseek)/i.test(raw.trim()) ||
+    (lower.includes("llama") && lower.includes("versatile"))
+  ) {
+    return { provider: "groq", modelId: raw || DEFAULT_GROQ_MODEL };
+  }
+  return { provider: "google", modelId: raw || DEFAULT_GOOGLE_MODEL };
 }
 
 export type ResolvedLanguageModel = {
@@ -85,7 +100,8 @@ function gatewayModel(fullId: string): ResolvedLanguageModel {
 }
 
 /**
- * Groq first when configured, then Google, then OpenAI.
+ * Google (Gemini) first when configured — needed for JSON-schema structured outputs (GenUI).
+ * Then Groq, then OpenAI. Use `groq/<model>` in the flow when you want Groq explicitly.
  * AI Gateway: use flow model `gateway/<provider/model>` or configure only AI_GATEWAY_API_KEY.
  */
 export function resolveLanguageModel(requested?: string): ResolvedLanguageModel {
@@ -111,8 +127,7 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
   const groq = env.hasGroq
     ? createGroq({ apiKey: process.env.GROQ_API_KEY })
     : null;
-  const googleKey =
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY;
+  const googleKey = getGoogleApiKey();
   const google =
     env.hasGoogle && googleKey
       ? createGoogleGenerativeAI({ apiKey: googleKey })
@@ -159,16 +174,16 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
         label: `openai:${DEFAULT_OPENAI_MODEL}`,
       };
     }
-    if (used === "google" && groq) {
-      return {
-        model: groqModel(DEFAULT_GROQ_MODEL),
-        label: `groq:${DEFAULT_GROQ_MODEL}`,
-      };
-    }
     if (used === "google" && openaiClient) {
       return {
         model: openaiModel(DEFAULT_OPENAI_MODEL),
         label: `openai:${DEFAULT_OPENAI_MODEL}`,
+      };
+    }
+    if (used === "google" && groq) {
+      return {
+        model: groqModel(DEFAULT_GROQ_MODEL),
+        label: `groq:${DEFAULT_GROQ_MODEL}`,
       };
     }
     if (used === "openai" && groq) {
@@ -200,21 +215,6 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
   }
 
   const bare = modelId || "";
-  if (groq) {
-    const id =
-      provider === "auto" && bare && !bare.toLowerCase().includes("gemini")
-        ? bare.includes("/")
-          ? bare.split("/").pop()!
-          : bare
-        : DEFAULT_GROQ_MODEL;
-    const fb = pickFallback("groq");
-    return {
-      model: groqModel(id),
-      providerLabel: `groq:${id}`,
-      fallback: fb?.model,
-      fallbackLabel: fb?.label,
-    };
-  }
   if (google) {
     const id =
       provider === "auto"
@@ -226,6 +226,21 @@ export function resolveLanguageModel(requested?: string): ResolvedLanguageModel 
     return {
       model: googleModel(id),
       providerLabel: `google:${id}`,
+      fallback: fb?.model,
+      fallbackLabel: fb?.label,
+    };
+  }
+  if (groq) {
+    const id =
+      provider === "auto" && bare && !bare.toLowerCase().includes("gemini")
+        ? bare.includes("/")
+          ? bare.split("/").pop()!
+          : bare
+        : DEFAULT_GROQ_MODEL;
+    const fb = pickFallback("groq");
+    return {
+      model: groqModel(id),
+      providerLabel: `groq:${id}`,
       fallback: fb?.model,
       fallbackLabel: fb?.label,
     };

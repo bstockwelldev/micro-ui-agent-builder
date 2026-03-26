@@ -12,7 +12,7 @@ pnpm monorepo: **`@repo/shared`** (Zod schemas) + **Next.js 15** app in `apps/we
 ```bash
 pnpm install
 cp apps/web/.env.example apps/web/.env.local
-# Set at least one LLM key in apps/web/.env.local (GROQ_API_KEY preferred)
+# Set at least one LLM key in apps/web/.env.local (GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY preferred for GenUI)
 ```
 
 ## Scripts (repo root)
@@ -27,7 +27,7 @@ cp apps/web/.env.example apps/web/.env.local
 
 ## Environment
 
-See **`apps/web/.env.example`**. **`POST /api/agent/run`** and **`POST /api/agent/genui`** need at least one of **`GROQ_API_KEY`** (preferred), **`GOOGLE_GENERATIVE_AI_API_KEY`** / **`GEMINI_API_KEY`**, **`OPENAI_API_KEY`**, or **`AI_GATEWAY_API_KEY`** (Vercel AI Gateway only).
+See **`apps/web/.env.example`**. **`POST /api/agent/run`** and **`POST /api/agent/genui`** need at least one of **`GOOGLE_GENERATIVE_AI_API_KEY`**, **`GEMINI_API_KEY`**, **`GOOGLE_GENAI_API_KEY`**, or **`NEXT_PUBLIC_GEMINI_API_KEY`** (preferred for structured outputs / GenUI), **`GROQ_API_KEY`**, **`OPENAI_API_KEY`**, or **`AI_GATEWAY_API_KEY`** (Vercel AI Gateway only).
 
 Optional Supabase (same project as **Tabletop Studio**): set **`NEXT_PUBLIC_SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (server-only). The app then reads/writes the studio document in Postgres schema **`agent_builder`** (`studio_snapshots`, id **`default`**) instead of the local file. RLS blocks **`anon`** / **`authenticated`**; the service role key bypasses RLS and must never be exposed to the browser. **`POST /api/studio/backup`** uploads JSON to the private Storage bucket **`agent-builder`** and inserts a row in **`agent_builder.studio_artifacts`**. The migration file lives in the Tabletop Studio repo: **`supabase/migrations/20260325195000_agent_builder_schema_and_storage.sql`**.
 
@@ -45,7 +45,7 @@ Optional Supabase (same project as **Tabletop Studio**): set **`NEXT_PUBLIC_SUPA
 2. In the [Vercel dashboard](https://vercel.com/new), **Import** the repository.
 3. Set **Root Directory** to **`apps/web`**.
 4. Framework preset: **Next.js**. Leave install/build overrides empty unless you need to change them—the repo’s `vercel.json` supplies the monorepo commands.
-5. Add **Environment variables**: at least one LLM key (e.g. **`GROQ_API_KEY`**). For durable studio state, add **`NEXT_PUBLIC_SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (same Tabletop Studio Supabase project; apply migration from that repo if not already applied).
+5. Add **Environment variables**: at least one LLM key (e.g. **`GEMINI_API_KEY`** or **`GOOGLE_GENERATIVE_AI_API_KEY`**). For durable studio state, add **`NEXT_PUBLIC_SUPABASE_URL`** and **`SUPABASE_SERVICE_ROLE_KEY`** (same Tabletop Studio Supabase project; apply migration from that repo if not already applied).
 6. Deploy.
 
 ### Vercel CLI
