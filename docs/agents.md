@@ -65,6 +65,7 @@ Read this file before non-trivial work: architecture, persistence, API routes, e
 | `components/flow/` | Flow editor, diagram, nodes |
 | `components/studio/` | Shell, headers |
 | `components/genui-renderer.tsx` | Renders GenUI output |
+| `components/ai-elements/` | Vercel AI Elements–based chat (Conversation, Message, PromptInput, Tool, Reasoning) |
 | `components/ui/` | shadcn-style primitives |
 | `hooks/use-studio-api.ts` | Client hooks for `/api/studio` |
 | `lib/server/paths.ts` | Data directory (`data/` vs `/tmp` on Vercel) |
@@ -135,6 +136,11 @@ RLS is expected to block `anon` / `authenticated` on `agent_builder` tables; the
 | POST | `/api/agent/genui` | Structured UI tree; body `{ instruction, flowId? }`; uses `generateObject` + shared schema |
 | POST | `/api/agent/approve` | Stub: clears `pausedRuns` session |
 | POST | `/api/mcp/proxy` | Forwards JSON to registered **http** MCP URLs; body `{ mcpServerId, request }` |
+
+**Generative UI — two paths (both valid):**
+
+1. **Inline in streamed chat** — `RunChatConversation` parses tool outputs with `tryParseGenuiSurfaceFromToolOutput` and renders `GenuiSurfaceView` when the payload matches the shared Zod schema. Flows can register `emit_genui_surface` ([`lib/server/agent-tools.ts`](../apps/web/lib/server/agent-tools.ts)) so the model can emit surfaces during `streamText`.
+2. **Dedicated `POST /api/agent/genui`** — One-shot `generateObject` for the Run page “default” variant or tooling; prefer this when you want strong structured output from providers that handle JSON schema well (local Ollama may be weaker for inline tool JSON).
 
 Implementation files live beside each route under `apps/web/app/api/`.
 
