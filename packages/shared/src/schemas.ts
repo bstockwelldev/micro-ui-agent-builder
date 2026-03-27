@@ -18,6 +18,10 @@ export const flowNodeTypeSchema = z.enum([
   "rubric",
   /** Require latest user text to contain `content` (case-insensitive substring); else refuse run. */
   "branch",
+  /** Same model fields as `llm` but `maxToolIterations` is required; maps to AI SDK `streamText` multi-step tool loop. */
+  "tool_loop",
+  /** Declares code execution expectations (language + instructions); merged into system; optional tool ref for sandbox runners. */
+  "code_exec",
 ]);
 
 export type FlowNodeType = z.infer<typeof flowNodeTypeSchema>;
@@ -31,6 +35,8 @@ export const flowEdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
   target: z.string().min(1),
+  /** Optional label shown on the canvas edge. */
+  label: z.string().max(160).optional(),
 });
 
 export type FlowEdge = z.infer<typeof flowEdgeSchema>;
@@ -52,6 +58,17 @@ export const flowStepSchema = z.object({
   topP: z.number().min(0).max(1).optional(),
   /** When set on an LLM step, forwarded to `streamText({ toolChoice })`. */
   toolChoice: flowToolChoiceSchema.optional(),
+  /**
+   * Multi-step tool use: forwarded to `streamText({ maxSteps })` when ≥ 2.
+   * Required for `tool_loop` steps; optional on `llm` to enable tool loops without a dedicated node.
+   */
+  maxToolIterations: z.number().int().min(1).max(64).optional(),
+  /**
+   * Human gate: optional GenUI surface JSON (`{ root: … }`) rendered at checkpoint for structured approval UI.
+   */
+  genuiCheckpointSurfaceJson: z.string().optional(),
+  /** Code execution step: preferred sandbox language hint. */
+  codeExecLanguage: z.enum(["javascript", "typescript", "python"]).optional(),
   /** Guardrail step: allow URLs in user text when true (passed to PromptPolicy.constraints). */
   allowUrls: z.boolean().optional(),
   /** Rubric step: if true, any static finding blocks the run (CI-style gate). */
@@ -76,6 +93,11 @@ export const flowDocumentSchema = z.object({
    * knowledge (see server `flow-knowledge-store`) and append them to the system prompt.
    */
   knowledgeBaseEnabled: z.boolean().optional(),
+  /**
+   * MCP server ids from the studio store (`mcpServers`) to attach for this flow.
+   * Merged at run time with `agent_builder.flow_mcp_links` when `MCP_REGISTRY_FROM_SUPABASE=true`.
+   */
+  mcpServerIds: z.array(z.string().min(1)).optional(),
 });
 
 export type FlowDocument = z.infer<typeof flowDocumentSchema>;

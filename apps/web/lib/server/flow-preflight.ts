@@ -42,7 +42,7 @@ function latestUserTextFromMessages(
 }
 
 /**
- * Runs ordered steps before the first LLM node: guardrail (user text), rubric (compiled system),
+ * Runs ordered steps before the first LLM or tool-loop node: guardrail (user text), rubric (compiled system),
  * branch (substring gate on user text). Aligns with validate-before-execute and static rubric gates.
  */
 export function runFlowPreflight(params: {
@@ -103,7 +103,9 @@ export function stepsOrderedBeforeFirstLlm(
 ): FlowStep[] {
   if (!steps?.length) return [];
   const ordered = [...steps].sort((a, b) => a.order - b.order);
-  const firstLlm = ordered.findIndex((s) => s.type === "llm");
-  if (firstLlm < 0) return ordered;
-  return ordered.slice(0, firstLlm);
+  const firstModel = ordered.findIndex(
+    (s) => s.type === "llm" || s.type === "tool_loop",
+  );
+  if (firstModel < 0) return ordered;
+  return ordered.slice(0, firstModel);
 }

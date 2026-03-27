@@ -8,10 +8,10 @@ import {
   History,
   LayoutDashboard,
   Layers,
-  Play,
   Rocket,
   Server,
   ShieldCheck,
+  Workflow,
   Wrench,
 } from "lucide-react";
 
@@ -22,7 +22,8 @@ const studioNavGroups = [
   {
     label: "Build",
     items: [
-      { href: "/flows", label: "Flows", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/flows", label: "Flows", icon: Workflow },
       { href: "/agents", label: "Agents", icon: Bot },
       { href: "/prompts", label: "Prompts", icon: FileText },
       { href: "/tools", label: "Tools", icon: Wrench },
@@ -31,15 +32,9 @@ const studioNavGroups = [
     ],
   },
   {
-    label: "Run",
-    items: [
-      { href: "/run", label: "Run", icon: Play },
-      { href: "/history", label: "History", icon: History },
-    ],
-  },
-  {
     label: "Operations",
     items: [
+      { href: "/history", label: "History", icon: History },
       { href: "/deployments", label: "Deployments", icon: Rocket },
       { href: "/evaluations", label: "Evaluations", icon: ShieldCheck },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -48,6 +43,9 @@ const studioNavGroups = [
 ] as const;
 
 function isStudioNavItemActive(pathname: string, href: string) {
+  if (href === "/dashboard") {
+    return pathname === "/dashboard";
+  }
   if (href === "/flows") {
     return pathname === "/flows" || pathname.startsWith("/flows/");
   }
@@ -74,7 +72,7 @@ export function StudioNav({
     <>
       <div>
         <Link
-          href="/flows"
+          href="/dashboard"
           className="text-sidebar-foreground text-lg font-semibold tracking-tight transition-expressive hover:text-sidebar-primary"
           onClick={onNavigate}
         >

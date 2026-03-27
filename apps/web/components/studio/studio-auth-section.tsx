@@ -12,7 +12,7 @@ import { getSupabasePublicEnv } from "@/lib/supabase/public-env";
 import { cn } from "@/lib/utils";
 
 export function StudioAuthSection() {
-  const pathname = usePathname() ?? "/flows";
+  const pathname = usePathname() ?? "/dashboard";
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
   useEffect(() => {
@@ -78,7 +78,7 @@ export function StudioAuthSection() {
             void createSupabaseBrowserClient()
               .auth.signOut()
               .then(() => {
-                window.location.href = "/flows";
+                window.location.href = "/dashboard";
               });
           }}
         >

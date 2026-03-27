@@ -42,6 +42,32 @@ export function buildSystemPromptFromFlow(
         `[Model instructions — LLM step]\n${step.content.trim()}`,
       );
     }
+    if (step.type === "tool_loop" && step.content?.trim()) {
+      chunks.push(
+        `[Model instructions — tool-loop agent]\n${step.content.trim()}`,
+      );
+      if (step.maxToolIterations != null) {
+        chunks.push(
+          `[Tool-loop runtime — maxSteps=${step.maxToolIterations}]\nIterate tool calls until the task completes or this cap is reached.`,
+        );
+      }
+    }
+    if (step.type === "code_exec") {
+      const lang = step.codeExecLanguage ?? "unspecified";
+      if (step.content?.trim()) {
+        chunks.push(
+          `[Code execution — language: ${lang}]\n${step.content.trim()}`,
+        );
+      }
+      if (step.refId) {
+        const name = toolNameFromId(step.refId);
+        const t = store.tools.find((x) => x.id === step.refId);
+        const desc = t?.description?.trim() ?? "see tool catalog";
+        chunks.push(
+          `[Code execution — linked tool \`${name}\`]\n${desc}`,
+        );
+      }
+    }
     if (step.type === "tool" && step.refId) {
       const name = toolNameFromId(step.refId);
       const t = store.tools.find((x) => x.id === step.refId);
@@ -57,6 +83,11 @@ export function buildSystemPromptFromFlow(
     }
     if (step.type === "human_gate" && step.content?.trim()) {
       chunks.push(`[Human-in-the-loop checkpoint]\n${step.content.trim()}`);
+    }
+    if (step.type === "human_gate" && step.genuiCheckpointSurfaceJson?.trim()) {
+      chunks.push(
+        `[GenUI checkpoint surface — render for structured approval / input]\n${step.genuiCheckpointSurfaceJson.trim()}`,
+      );
     }
     if (step.type === "output" && step.content?.trim()) {
       chunks.push(

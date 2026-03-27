@@ -1,8 +1,11 @@
 import { dynamicTool, type ToolSet } from "ai";
 import { z } from "zod";
 
-import type { StudioStore, ToolDefinition } from "@repo/shared";
+import type { FlowDocument, StudioStore, ToolDefinition } from "@repo/shared";
 
+import { buildMcpToolSetForServers } from "./mcp-bridge";
+import { fetchMcpServerIdsForFlowFromSupabase } from "./mcp-registry-supabase";
+import { filterCatalogToolsByFlow } from "./flow-tool-allowlist";
 import { evaluateArithmeticExpression } from "./safe-calculator";
 
 /** Catalog ids with server-side implementations (match seed / docs). */
@@ -152,14 +155,59 @@ function builtinToolForDefinition(def: ToolDefinition): ReturnType<typeof dynami
   return null;
 }
 
-export function buildToolSetFromStore(store: StudioStore): ToolSet {
+function buildCatalogToolSetFromDefinitions(defs: ToolDefinition[]): ToolSet {
   const tools: ToolSet = {};
-  for (const def of store.tools) {
+  for (const def of defs) {
     const name = toolNameFromId(def.id);
     const builtin = builtinToolForDefinition(def);
     tools[name] = builtin ?? catalogMockTool(def);
   }
   return tools;
+}
+
+export function buildToolSetFromStore(store: StudioStore): ToolSet {
+  return buildCatalogToolSetFromDefinitions(store.tools);
+}
+
+/**
+ * Merges flow-scoped catalog tools + namespaced MCP tools (HTTP).
+ * Set `MCP_TOOL_RESOLUTION_ENABLED=false` to skip remote MCP (catalog only).
+ */
+export async function resolveMcpServerIdsForFlow(
+  flow: FlowDocument | undefined,
+  flowId: string | undefined,
+): Promise<string[]> {
+  const ids = new Set<string>(flow?.mcpServerIds ?? []);
+  if (flowId) {
+    const fromDb = await fetchMcpServerIdsForFlowFromSupabase(flowId);
+    for (const id of fromDb) ids.add(id);
+  }
+  return [...ids];
+}
+
+export async function buildToolSetForAgentRun(
+  store: StudioStore,
+  flow: FlowDocument | undefined,
+  flowId: string | undefined,
+): Promise<{ tools: ToolSet; appendix: string }> {
+  const filtered = filterCatalogToolsByFlow(store.tools, flow);
+  let merged: ToolSet = buildCatalogToolSetFromDefinitions(filtered);
+
+  const mcpEnabled = process.env.MCP_TOOL_RESOLUTION_ENABLED !== "false";
+  if (mcpEnabled && flow) {
+    const serverIds = await resolveMcpServerIdsForFlow(flow, flowId);
+    if (serverIds.length > 0) {
+      const mcpTools = await buildMcpToolSetForServers(store.mcpServers, serverIds);
+      merged = { ...merged, ...mcpTools };
+    }
+  }
+
+  const names = Object.keys(merged);
+  const appendix =
+    names.length > 0
+      ? `\n\n[Callable tools — call only these exact tool names: ${names.join(", ")}. Do not append JSON or colons to the name.]`
+      : "";
+  return { tools: merged, appendix };
 }
 
 /** Appended to system so models use SDK-registered names only (must match `buildToolSetFromStore` keys). */

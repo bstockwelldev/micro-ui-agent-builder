@@ -6,10 +6,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
-import {
-  buildToolCatalogAppendix,
-  buildToolSetFromStore,
-} from "@/lib/server/agent-tools";
+import { buildToolSetForAgentRun } from "@/lib/server/agent-tools";
 import {
   runFlowPreflight,
   stepsOrderedBeforeFirstLlm,
@@ -34,8 +31,32 @@ import {
   getFlowById,
   readStudioStore,
 } from "@/lib/server/studio-store";
+import type { FlowStep } from "@repo/shared";
 
 export const maxDuration = 60;
+
+function firstPrimaryModelStep(
+  steps: FlowStep[] | undefined,
+): FlowStep | undefined {
+  if (!steps?.length) return undefined;
+  const ordered = [...steps].sort((a, b) => a.order - b.order);
+  return ordered.find((s) => s.type === "llm" || s.type === "tool_loop");
+}
+
+function maxStepsForPrimaryStep(step: FlowStep | undefined): number | undefined {
+  if (!step) return undefined;
+  if (step.type === "tool_loop" && step.maxToolIterations != null) {
+    return step.maxToolIterations;
+  }
+  if (
+    step.type === "llm" &&
+    step.maxToolIterations != null &&
+    step.maxToolIterations >= 2
+  ) {
+    return step.maxToolIterations;
+  }
+  return undefined;
+}
 
 export async function POST(req: Request) {
   const envMissing = missingProviderMessage();
@@ -89,16 +110,18 @@ export async function POST(req: Request) {
     system = await augmentSystemWithFlowKnowledge(system, kbEntry, messages);
   }
 
-  const tools = buildToolSetFromStore(store);
-  if (Object.keys(tools).length > 0) {
-    system += buildToolCatalogAppendix(store);
+  const { tools, appendix } = await buildToolSetForAgentRun(
+    store,
+    flow,
+    body.flowId,
+  );
+  if (appendix) {
+    system += appendix;
   }
 
-  const llmStep =
-    flow?.steps
-      .filter((s) => s.type === "llm")
-      .sort((a, b) => a.order - b.order)[0] ?? undefined;
-  const modelRef = llmStep?.model;
+  const primaryStep = firstPrimaryModelStep(flow?.steps);
+  const modelRef = primaryStep?.model;
+  const maxSteps = maxStepsForPrimaryStep(primaryStep);
 
   let resolved;
   try {
@@ -140,10 +163,11 @@ export async function POST(req: Request) {
     system,
     messages: coreMessages,
     tools: Object.keys(tools).length > 0 ? tools : undefined,
-    temperature: llmStep?.temperature,
-    maxOutputTokens: llmStep?.maxTokens,
-    topP: llmStep?.topP,
-    toolChoice: llmStep?.toolChoice,
+    temperature: primaryStep?.temperature,
+    maxOutputTokens: primaryStep?.maxTokens,
+    topP: primaryStep?.topP,
+    toolChoice: primaryStep?.toolChoice,
+    ...(maxSteps != null ? { maxSteps } : {}),
     onFinish: (event) => {
       const usage = event.usage;
       const inputTokens = usage.inputTokens ?? 0;

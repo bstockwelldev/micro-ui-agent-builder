@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { StudioShell } from "@/components/studio/studio-shell";
 
 export default function StudioLayout({
@@ -5,5 +7,9 @@ export default function StudioLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <StudioShell>{children}</StudioShell>;
+  return (
+    <Suspense fallback={<div className="bg-background min-h-dvh" />}>
+      <StudioShell>{children}</StudioShell>
+    </Suspense>
+  );
 }

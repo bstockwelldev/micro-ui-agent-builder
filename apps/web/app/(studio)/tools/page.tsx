@@ -27,6 +27,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  studioCardEditHint,
+  studioResourceCardInteractiveClass,
+  StudioCardDeleteIconButton,
+  StudioCardEditIconButton,
+} from "@/components/studio/studio-resource-card-actions";
 import { StudioResourceStatusBadge } from "@/components/studio/studio-resource-status-badge";
 import { useStudioApi } from "@/hooks/use-studio-api";
 import { useStudioResourceStatus } from "@/hooks/use-studio-resource-status";
@@ -167,9 +173,7 @@ export default function ToolsPage() {
                   role="button"
                   tabIndex={0}
                   aria-label={`Edit tool ${t.id}`}
-                  className={cn(
-                    "ring-outline-variant/20 cursor-pointer transition-[box-shadow,ring-color] hover:ring-primary/30 focus-visible:ring-primary/50 border-outline-variant/25 border focus-visible:ring-2 focus-visible:outline-none",
-                  )}
+                  className={cn(studioResourceCardInteractiveClass)}
                   onClick={() => openEdit(t)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -198,38 +202,27 @@ export default function ToolsPage() {
                         </span>
                       ) : null}
                     </CardDescription>
-                    <p className="text-muted-foreground pt-1 text-[11px]">
-                      Click card to edit · or use actions below
-                    </p>
+                    <p className="text-muted-foreground pt-1 text-[11px]">{studioCardEditHint}</p>
                   </CardHeader>
-                  <CardContent
-                    className="space-y-3"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
+                  <CardContent className="space-y-3">
+                    <div
+                      className="flex flex-wrap items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <StudioCardEditIconButton
+                        label={t.id}
                         disabled={saving || !data}
                         onClick={() => openEdit(t)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="text-destructive hover:bg-destructive/10"
+                      />
+                      <StudioCardDeleteIconButton
+                        label={t.id}
                         disabled={saving || !data}
                         onClick={() => {
                           clearSaveError();
                           setDeleteTarget(t);
                         }}
-                      >
-                        Delete
-                      </Button>
+                      />
                     </div>
                     <pre className="bg-surface-container-lowest/90 max-h-36 overflow-auto rounded-lg p-2 font-mono text-[11px] ring-1 ring-outline-variant/20">
                       {t.parametersJson}

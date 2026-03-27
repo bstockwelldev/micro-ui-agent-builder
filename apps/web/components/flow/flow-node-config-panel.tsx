@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  FlowNodeType,
   FlowStep,
   FlowToolChoice,
   FlowValidationIssue,
@@ -21,6 +22,7 @@ import {
   STUDIO_LLM_PROVIDERS,
   coerceStudioLlmProviderLabel,
 } from "@/lib/studio-llm-providers";
+import { FLOW_NODE_TYPE_OPTIONS } from "@/lib/flow-default-step";
 
 const TOOL_CHOICE_OPTIONS: { value: FlowToolChoice; label: string; hint: string }[] =
   [
@@ -73,6 +75,12 @@ export function FlowNodeConfigPanel({
   const [displayLabel, setDisplayLabel] = useState("");
   const [allowUrls, setAllowUrls] = useState(false);
   const [rubricFailOnFindings, setRubricFailOnFindings] = useState(false);
+  const [genuiCheckpointSurfaceJson, setGenuiCheckpointSurfaceJson] =
+    useState("");
+  const [maxToolIterations, setMaxToolIterations] = useState<number | "">("");
+  const [codeExecLanguage, setCodeExecLanguage] = useState<
+    "javascript" | "typescript" | "python" | ""
+  >("");
 
   const promptOptions = useMemo(
     () => [...prompts].sort((a, b) => a.name.localeCompare(b.name)),
@@ -106,11 +114,14 @@ export function FlowNodeConfigPanel({
     setDisplayLabel(step.displayLabel ?? "");
     setAllowUrls(step.allowUrls === true);
     setRubricFailOnFindings(step.rubricFailOnFindings === true);
+    setGenuiCheckpointSurfaceJson(step.genuiCheckpointSurfaceJson ?? "");
+    setMaxToolIterations(
+      step.maxToolIterations != null ? step.maxToolIterations : "",
+    );
+    setCodeExecLanguage(step.codeExecLanguage ?? "");
   }, [step]);
 
   if (!open || !step) return null;
-
-  const typeLabel = step.type.replace("_", " ");
 
   return (
     <aside
@@ -133,9 +144,6 @@ export function FlowNodeConfigPanel({
         </div>
         <p className="text-secondary-foreground font-mono text-[10px]">
           NODE_ID: {step.id}
-        </p>
-        <p className="text-primary mt-2 font-mono text-[10px] uppercase tracking-wider">
-          Type · {typeLabel}
         </p>
       </div>
 
@@ -160,6 +168,25 @@ export function FlowNodeConfigPanel({
             </ul>
           </div>
         ) : null}
+        <label className="block">
+          <FieldLabel>Node type</FieldLabel>
+          <select
+            className="border-outline-variant/20 bg-surface-container-lowest text-foreground focus:border-primary w-full rounded-lg border p-2 text-xs outline-none transition-colors"
+            value={step.type}
+            onChange={(e) => {
+              const t = e.target.value as FlowNodeType;
+              if (t === step.type) return;
+              onApply({ type: t });
+            }}
+            aria-label="Node type"
+          >
+            {FLOW_NODE_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="block">
           <FieldLabel>Display label (optional)</FieldLabel>
           <input
@@ -215,7 +242,7 @@ export function FlowNodeConfigPanel({
           </>
         )}
 
-        {step.type === "llm" && (
+        {(step.type === "llm" || step.type === "tool_loop") && (
           <>
             <label className="block">
               <FieldLabel>Model provider</FieldLabel>
@@ -371,6 +398,33 @@ export function FlowNodeConfigPanel({
                 ))}
               </select>
             </label>
+            <label className="block">
+              <FieldLabel>
+                Max tool iterations (
+                {step.type === "tool_loop"
+                  ? "required — maps to streamText maxSteps"
+                  : "optional — enables multi-step tool use on LLM"}
+                )
+              </FieldLabel>
+              <input
+                type="number"
+                min={1}
+                max={64}
+                className="border-outline-variant/20 bg-surface-container-lowest text-foreground focus:border-primary w-full rounded-lg border p-2 font-mono text-xs outline-none"
+                value={maxToolIterations === "" ? "" : maxToolIterations}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "") {
+                    setMaxToolIterations("");
+                    return;
+                  }
+                  const n = Number(v);
+                  if (!Number.isFinite(n)) return;
+                  setMaxToolIterations(Math.min(64, Math.max(1, Math.floor(n))));
+                }}
+                placeholder={step.type === "tool_loop" ? "e.g. 8" : "Leave empty for single-step"}
+              />
+            </label>
           </>
         )}
 
@@ -461,9 +515,70 @@ export function FlowNodeConfigPanel({
                 placeholder="Describe what must be confirmed before continuing…"
               />
             </label>
+            <label className="block">
+              <FieldLabel>GenUI checkpoint surface (JSON, optional)</FieldLabel>
+              <textarea
+                className="border-outline-variant/20 bg-surface-container-lowest text-foreground/90 focus:border-primary h-40 w-full resize-none rounded-lg border p-3 font-mono text-[11px] outline-none transition-colors"
+                value={genuiCheckpointSurfaceJson}
+                onChange={(e) => setGenuiCheckpointSurfaceJson(e.target.value)}
+                placeholder='{"root": { "type": "Stack", "children": [...] } }'
+              />
+            </label>
             <p className="text-muted-foreground text-[11px] leading-snug">
-              Included in the compiled system string as a human-in-the-loop
-              section for operators and the model.
+              When set, parsed and merged into the compiled system prompt for
+              structured approval UI (GenUI surface). Invalid JSON is rejected at
+              validation time.
+            </p>
+          </>
+        )}
+
+        {step.type === "code_exec" && (
+          <>
+            <label className="block">
+              <FieldLabel>Language hint</FieldLabel>
+              <select
+                className="border-outline-variant/20 bg-surface-container-lowest text-foreground focus:border-primary w-full rounded-lg border p-2 text-xs outline-none"
+                value={codeExecLanguage}
+                onChange={(e) =>
+                  setCodeExecLanguage(
+                    e.target.value as "javascript" | "typescript" | "python" | "",
+                  )
+                }
+              >
+                <option value="">— Not specified —</option>
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="python">Python</option>
+              </select>
+            </label>
+            <label className="block">
+              <FieldLabel>Catalog tool (optional sandbox runner)</FieldLabel>
+              <select
+                id="step-code-exec-tool"
+                className="border-outline-variant/20 bg-surface-container-lowest text-foreground focus:border-primary w-full rounded-lg border p-2 text-xs outline-none transition-colors"
+                value={refId}
+                onChange={(e) => setRefId(e.target.value)}
+              >
+                <option value="">— None —</option>
+                {toolOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <FieldLabel>Execution instructions</FieldLabel>
+              <textarea
+                className="border-outline-variant/20 bg-surface-container-lowest text-foreground/90 focus:border-primary h-36 w-full resize-none rounded-lg border p-3 font-mono text-[11px] outline-none transition-colors"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="How the agent should use code execution or the linked tool…"
+              />
+            </label>
+            <p className="text-muted-foreground text-[11px] leading-snug">
+              Merged into the system prompt; link a catalog tool when your
+              runtime exposes a code/sandbox executor.
             </p>
           </>
         )}
@@ -591,7 +706,13 @@ export function FlowNodeConfigPanel({
               });
               return;
             }
-            if (step.type === "llm") {
+            if (step.type === "llm" || step.type === "tool_loop") {
+              const mti =
+                maxToolIterations === ""
+                  ? step.type === "tool_loop"
+                    ? 8
+                    : undefined
+                  : maxToolIterations;
               onApply({
                 ...labelPatch,
                 modelProvider: provider,
@@ -601,6 +722,7 @@ export function FlowNodeConfigPanel({
                 maxTokens,
                 topP: topPOverride ? topP : undefined,
                 toolChoice: toolChoice || undefined,
+                maxToolIterations: mti,
               });
               return;
             }
@@ -612,9 +734,27 @@ export function FlowNodeConfigPanel({
               });
               return;
             }
-            if (step.type === "human_gate" || step.type === "output") {
+            if (step.type === "human_gate") {
               onApply({
                 ...labelPatch,
+                content: content.trim() || undefined,
+                genuiCheckpointSurfaceJson:
+                  genuiCheckpointSurfaceJson.trim() || undefined,
+              });
+              return;
+            }
+            if (step.type === "output") {
+              onApply({
+                ...labelPatch,
+                content: content.trim() || undefined,
+              });
+              return;
+            }
+            if (step.type === "code_exec") {
+              onApply({
+                ...labelPatch,
+                refId: refId.trim() || undefined,
+                codeExecLanguage: codeExecLanguage || undefined,
                 content: content.trim() || undefined,
               });
               return;

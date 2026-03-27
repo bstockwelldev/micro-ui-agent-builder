@@ -26,6 +26,6 @@ export function isAuthProtectStudioEnabled(): boolean {
 
 /** Prevent open redirects after OAuth. */
 export function safeAuthNextPath(raw: string | null | undefined): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/flows";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
   return raw;
 }

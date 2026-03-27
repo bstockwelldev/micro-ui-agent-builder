@@ -14,6 +14,8 @@ const TYPE_TITLES: Record<FlowNodeType, string> = {
   system: "System prompt",
   user: "User / context",
   llm: "Agent model",
+  tool_loop: "Tool-loop agent",
+  code_exec: "Code execution",
   tool: "Tool routing",
   human_gate: "Human gate",
   output: "Output contract",
@@ -58,6 +60,40 @@ function stepBlocks(s: FlowStep): { label: string; value: string }[] {
         },
         {
           label: "Instruction",
+          value: s.content?.trim()
+            ? s.content.length > 64
+              ? `${s.content.slice(0, 64)}…`
+              : s.content
+            : "—",
+        },
+      ];
+    case "tool_loop":
+      return [
+        {
+          label: "Model",
+          value: s.model?.trim() || "—",
+        },
+        {
+          label: "Max iterations",
+          value: s.maxToolIterations != null ? String(s.maxToolIterations) : "—",
+        },
+        {
+          label: "Instruction",
+          value: s.content?.trim()
+            ? s.content.length > 48
+              ? `${s.content.slice(0, 48)}…`
+              : s.content
+            : "—",
+        },
+      ];
+    case "code_exec":
+      return [
+        {
+          label: "Language",
+          value: s.codeExecLanguage ?? "—",
+        },
+        {
+          label: "Contract",
           value: s.content?.trim()
             ? s.content.length > 64
               ? `${s.content.slice(0, 64)}…`
@@ -150,7 +186,10 @@ export function buildFlowGraph(flow: FlowDocument): {
           id: e.id,
           source: e.source,
           target: e.target,
+          label: e.label,
           style: { stroke: "#00e5ff", strokeWidth: 2 },
+          labelStyle: { fill: "#e2e8f0", fontSize: 11, fontWeight: 500 },
+          labelBgStyle: { fill: "rgba(15, 23, 42, 0.92)", fillOpacity: 1 },
         }))
       : sorted.slice(0, -1).map((s, i) => ({
           id: `linear-${s.id}-${sorted[i + 1]!.id}`,

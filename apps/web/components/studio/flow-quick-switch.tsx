@@ -47,13 +47,13 @@ export function FlowQuickSwitch({
         onChange={(e) => {
           const id = e.target.value;
           if (!id) {
-            router.push(mode === "editor" ? "/flows" : "/run");
+            router.push("/dashboard");
             return;
           }
           if (mode === "editor") {
             router.push(`/flows/${encodeURIComponent(id)}`);
           } else {
-            router.push(`/run?flowId=${encodeURIComponent(id)}`);
+            router.push(`/dashboard?flowId=${encodeURIComponent(id)}`);
           }
         }}
       >

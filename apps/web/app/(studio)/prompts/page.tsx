@@ -5,6 +5,12 @@ import { useState } from "react";
 import type { PromptTemplate } from "@repo/shared";
 
 import { StudioApiStatusBanners } from "@/components/studio/studio-api-status-banners";
+import {
+  studioCardEditHint,
+  studioResourceCardInteractiveClass,
+  StudioCardDeleteIconButton,
+  StudioCardEditIconButton,
+} from "@/components/studio/studio-resource-card-actions";
 import { StudioConfirmDialog } from "@/components/studio/studio-confirm-dialog";
 import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
@@ -119,9 +125,7 @@ export default function PromptsPage() {
                   role="button"
                   tabIndex={0}
                   aria-label={`Edit prompt ${p.name}`}
-                  className={cn(
-                    "ring-outline-variant/20 cursor-pointer transition-[box-shadow,ring-color] hover:ring-primary/30 focus-visible:ring-primary/50 border-outline-variant/25 border focus-visible:ring-2 focus-visible:outline-none",
-                  )}
+                  className={cn(studioResourceCardInteractiveClass)}
                   onClick={() => openEdit(p)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -133,38 +137,27 @@ export default function PromptsPage() {
                   <CardHeader>
                     <CardTitle className="text-base">{p.name}</CardTitle>
                     <CardDescription className="font-mono text-xs">{p.id}</CardDescription>
-                    <p className="text-muted-foreground pt-1 text-[11px]">
-                      Click card to edit · or use actions below
-                    </p>
+                    <p className="text-muted-foreground pt-1 text-[11px]">{studioCardEditHint}</p>
                   </CardHeader>
-                  <CardContent
-                    className="space-y-3"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
+                  <CardContent className="space-y-3">
+                    <div
+                      className="flex flex-wrap items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <StudioCardEditIconButton
+                        label={p.name}
                         disabled={saving || !data}
                         onClick={() => openEdit(p)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="text-destructive hover:bg-destructive/10"
+                      />
+                      <StudioCardDeleteIconButton
+                        label={p.name}
                         disabled={saving || !data}
                         onClick={() => {
                           clearSaveError();
                           setDeleteTarget(p);
                         }}
-                      >
-                        Delete
-                      </Button>
+                      />
                     </div>
                     <pre className="bg-surface-container-lowest/90 max-h-48 overflow-auto rounded-lg p-3 font-mono text-xs whitespace-pre-wrap ring-1 ring-outline-variant/20">
                       {p.body}

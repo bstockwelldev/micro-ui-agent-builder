@@ -11,6 +11,7 @@ type Props = {
   description: ReactNode;
   loading?: boolean;
   onRefresh?: () => void;
+  className?: string;
 };
 
 export function StudioPageHeader({
@@ -18,20 +19,23 @@ export function StudioPageHeader({
   description,
   loading = false,
   onRefresh,
+  className,
 }: Props) {
   return (
-    <div className="space-y-3">
+    <div className={cn("min-w-0 space-y-3", className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-muted-foreground text-sm">{description}</p>
+          <p className="text-muted-foreground max-w-full text-sm break-words">
+            {description}
+          </p>
         </div>
         {onRefresh ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="transition-expressive"
+            className="transition-expressive shrink-0"
             onClick={() => void onRefresh()}
             disabled={loading}
             aria-busy={loading}

@@ -13,10 +13,12 @@ import {
   Bot,
   Brain,
   ClipboardCheck,
+  Code2,
   FileOutput,
   GitBranch,
   Handshake,
   PersonStanding,
+  RefreshCw,
   Shield,
   Wrench,
 } from "lucide-react";
@@ -28,6 +30,10 @@ function TypeIcon({ type }: { type: StepNodeData["stepType"] }) {
       return <Bot className={cn(cls, "text-primary")} aria-hidden />;
     case "llm":
       return <Brain className={cn(cls, "text-secondary-foreground")} aria-hidden />;
+    case "tool_loop":
+      return <RefreshCw className={cn(cls, "text-cyan-300/95")} aria-hidden />;
+    case "code_exec":
+      return <Code2 className={cn(cls, "text-fuchsia-300/90")} aria-hidden />;
     case "user":
       return <PersonStanding className={cn(cls, "text-muted-foreground")} aria-hidden />;
     case "tool":
@@ -54,6 +60,9 @@ export function StepFlowNode({
   const hasValidationError = validationMessages.length > 0;
   const isSystem = data.stepType === "system";
   const isLlm = data.stepType === "llm";
+  const isToolLoop = data.stepType === "tool_loop";
+  const isCodeExec = data.stepType === "code_exec";
+  const isPrimaryModel = isLlm || isToolLoop;
   const isUser = data.stepType === "user";
   const isGuardrail = data.stepType === "guardrail";
   const isRubric = data.stepType === "rubric";
@@ -73,9 +82,12 @@ export function StepFlowNode({
           "glass-panel border-primary/45 shadow-[0_4px_24px_rgba(0,0,0,0.45)]",
         isUser &&
           "glass-panel border-white/18 opacity-95 shadow-[0_4px_24px_rgba(0,0,0,0.4)] hover:opacity-100",
-        isLlm &&
+        isPrimaryModel &&
           "bg-surface-container-highest border-2 border-primary/55 shadow-[0_0_36px_rgba(0,229,255,0.22),0_6px_20px_rgba(0,0,0,0.35)]",
-        isLlm && selected && "border-primary",
+        isPrimaryModel && selected && "border-primary",
+        isCodeExec &&
+          "bg-surface-container-highest border-2 border-fuchsia-500/40 shadow-[0_0_28px_rgba(217,70,239,0.12),0_6px_20px_rgba(0,0,0,0.35)]",
+        isCodeExec && selected && "border-fuchsia-400/70",
         isGuardrail &&
           "bg-surface-container-highest border-emerald-400/45 shadow-[0_0_28px_rgba(52,211,153,0.14),0_6px_20px_rgba(0,0,0,0.35)]",
         isRubric &&
@@ -88,7 +100,8 @@ export function StepFlowNode({
           "bg-surface-container-highest border-sky-400/40 shadow-[0_6px_20px_rgba(0,0,0,0.35)]",
         isTool &&
           "bg-surface-container-highest border-white/22 shadow-[0_6px_20px_rgba(0,0,0,0.35)]",
-        !isLlm &&
+        !isPrimaryModel &&
+          !isCodeExec &&
           !isSystem &&
           !isUser &&
           !isPreflightStyle &&
@@ -96,7 +109,7 @@ export function StepFlowNode({
           !isOutput &&
           !isTool &&
           "bg-surface-container-highest border-white/22 shadow-[0_6px_20px_rgba(0,0,0,0.35)]",
-        selected && !isLlm && "ring-primary/55 ring-2",
+        selected && !isPrimaryModel && !isCodeExec && "ring-primary/55 ring-2",
         selected && isGuardrail && "ring-emerald-400/45",
         selected && isRubric && "ring-violet-400/45",
         selected && isBranch && "ring-orange-400/45",
@@ -108,9 +121,11 @@ export function StepFlowNode({
         position={Position.Left}
         className={cn(
           "!border-surface !size-4 !border-4 !shadow-md",
-          isLlm
+          isPrimaryModel
             ? "!bg-secondary"
-            : isUser
+            : isCodeExec
+              ? "!bg-fuchsia-400"
+              : isUser
               ? "!bg-[#fec931]"
               : isGuardrail
                 ? "!bg-emerald-400"
@@ -127,7 +142,8 @@ export function StepFlowNode({
             className={cn(
               "size-2 shrink-0 rounded-full",
               isSystem && "bg-[#f3bf26] animate-pulse",
-              isLlm && "bg-secondary shadow-[0_0_8px_#cdbdff]",
+              isPrimaryModel && "bg-secondary shadow-[0_0_8px_#cdbdff]",
+              isCodeExec && "bg-fuchsia-400",
               isUser && "bg-[#fec931]",
               isGuardrail && "bg-emerald-400",
               isRubric && "bg-violet-400",
@@ -136,7 +152,8 @@ export function StepFlowNode({
               isOutput && "bg-sky-400",
               isTool && "bg-muted-foreground",
               !isSystem &&
-                !isLlm &&
+                !isPrimaryModel &&
+                !isCodeExec &&
                 !isUser &&
                 !isPreflightStyle &&
                 !isHumanGate &&
@@ -150,7 +167,8 @@ export function StepFlowNode({
             className={cn(
               "font-mono text-xs font-bold tracking-tight",
               isSystem && "text-primary",
-              isLlm && !selected && "text-foreground",
+              isPrimaryModel && !selected && "text-foreground",
+              isCodeExec && "text-fuchsia-200/95",
               isGuardrail && "text-emerald-300/95",
               isRubric && "text-violet-300/95",
               isBranch && "text-orange-300/95",
@@ -167,7 +185,7 @@ export function StepFlowNode({
             key={b.label}
             className={cn(
               "rounded-lg border p-2",
-              isLlm && b.label === "Model"
+              isPrimaryModel && b.label === "Model"
                 ? "border-primary/25 bg-surface-container-low/80"
                 : "border-white/12 bg-surface-container-low/60",
             )}
@@ -175,7 +193,7 @@ export function StepFlowNode({
             <div
               className={cn(
                 "text-[10px] font-mono uppercase",
-                isLlm && b.label === "Model"
+                isPrimaryModel && b.label === "Model"
                   ? "mb-1 text-secondary-foreground"
                   : "text-muted-foreground",
               )}
@@ -214,11 +232,13 @@ export function StepFlowNode({
         position={Position.Right}
         className={cn(
           "!border-surface !size-4 !cursor-crosshair !border-4 !shadow-md",
-          isSystem
+            isSystem
             ? "!bg-primary"
-            : isLlm
+            : isPrimaryModel
               ? "!bg-secondary"
-              : isGuardrail
+              : isCodeExec
+                ? "!bg-fuchsia-400"
+                : isGuardrail
                 ? "!bg-emerald-400"
                 : isRubric
                   ? "!bg-violet-400"
@@ -227,9 +247,15 @@ export function StepFlowNode({
                     : "!bg-[#fec931]",
         )}
       />
-      {selected && isLlm ? (
+      {selected && isPrimaryModel ? (
         <div
           className="border-primary/30 pointer-events-none absolute inset-0 rounded-xl border"
+          aria-hidden
+        />
+      ) : null}
+      {selected && isCodeExec ? (
+        <div
+          className="border-fuchsia-400/35 pointer-events-none absolute inset-0 rounded-xl border"
           aria-hidden
         />
       ) : null}

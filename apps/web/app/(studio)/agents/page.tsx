@@ -1,17 +1,23 @@
 "use client";
 
 import { nanoid } from "nanoid";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { AgentProfile } from "@repo/shared";
 
 import { AgentProfileEditorDialog } from "@/components/studio/agent-profile-editor-dialog";
+import {
+  studioCardEditHint,
+  studioResourceCardInteractiveClass,
+  StudioCardDeleteIconButton,
+  StudioCardEditIconButton,
+  StudioCardRunIconLink,
+} from "@/components/studio/studio-resource-card-actions";
 import { StudioApiStatusBanners } from "@/components/studio/studio-api-status-banners";
 import { StudioConfirmDialog } from "@/components/studio/studio-confirm-dialog";
 import { StudioPage } from "@/components/studio/studio-page";
 import { StudioPageHeader } from "@/components/studio/studio-page-header";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -102,9 +108,7 @@ export default function AgentsPage() {
                   role="button"
                   tabIndex={0}
                   aria-label={`Edit agent ${a.name}`}
-                  className={cn(
-                    "ring-outline-variant/20 cursor-pointer transition-[box-shadow,ring-color] hover:ring-primary/30 focus-visible:ring-primary/50 border-outline-variant/25 border focus-visible:ring-2 focus-visible:outline-none",
-                  )}
+                  className={cn(studioResourceCardInteractiveClass)}
                   onClick={() => openEdit(a)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -116,15 +120,9 @@ export default function AgentsPage() {
                   <CardHeader>
                     <CardTitle className="text-base">{a.name}</CardTitle>
                     <CardDescription className="font-mono text-xs">{a.id}</CardDescription>
-                    <p className="text-muted-foreground pt-1 text-[11px]">
-                      Click card to edit · or use actions below
-                    </p>
+                    <p className="text-muted-foreground pt-1 text-[11px]">{studioCardEditHint}</p>
                   </CardHeader>
-                  <CardContent
-                    className="space-y-2"
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                  >
+                  <CardContent className="space-y-2">
                     {a.description ? (
                       <p className="text-muted-foreground text-sm">{a.description}</p>
                     ) : null}
@@ -146,37 +144,30 @@ export default function AgentsPage() {
                         {a.optionalElements.join(" · ")}
                       </p>
                     ) : null}
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
+                    <div
+                      className="flex flex-wrap items-center gap-1 pt-1"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <StudioCardEditIconButton
+                        label={a.name}
                         disabled={saving || !data}
                         onClick={() => openEdit(a)}
-                      >
-                        Edit
-                      </Button>
+                      />
                       {a.defaultFlowId ? (
-                        <Link
-                          href={`/run?flowId=${encodeURIComponent(a.defaultFlowId)}&agentId=${encodeURIComponent(a.id)}`}
-                          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                        >
-                          Run with agent
-                        </Link>
+                        <StudioCardRunIconLink
+                          label={a.name}
+                          href={`/dashboard?flowId=${encodeURIComponent(a.defaultFlowId)}&agentId=${encodeURIComponent(a.id)}`}
+                        />
                       ) : null}
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="text-destructive hover:bg-destructive/10"
+                      <StudioCardDeleteIconButton
+                        label={a.name}
                         disabled={saving || !data}
                         onClick={() => {
                           clearSaveError();
                           setDeleteTarget(a);
                         }}
-                      >
-                        Delete
-                      </Button>
+                      />
                     </div>
                   </CardContent>
                 </Card>

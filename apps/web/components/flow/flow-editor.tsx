@@ -4,10 +4,9 @@ import {
   addEdge,
   Background,
   BackgroundVariant,
-  Controls,
-  Panel,
   ReactFlow,
   ReactFlowProvider,
+  reconnectEdge,
   useEdgesState,
   useNodesInitialized,
   useNodesState,
@@ -15,46 +14,35 @@ import {
   type Connection,
   type Edge,
   type Node,
+  type OnReconnect,
+  type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { nanoid } from "nanoid";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  RunChat,
-  type FlowCanvasRunPhase,
-} from "@/app/(studio)/run/run-chat";
-import { FlowQuickSwitch } from "@/components/studio/flow-quick-switch";
+import { RunChat } from "@/app/(studio)/run/run-chat";
+import type { FlowCanvasRunPhase } from "@/app/(studio)/run/run-types";
+import { FlowCanvasInteractionDialog } from "@/components/flow/flow-canvas-interaction-dialog";
+import { FlowEditorCanvasRail } from "@/components/flow/flow-editor-canvas-rail";
+import { FlowEditorTopHud } from "@/components/flow/flow-editor-top-hud";
+import { FlowZoomIndicator } from "@/components/flow/flow-zoom-indicator";
+import { FlowNodeQuickAddPanel } from "@/components/flow/flow-node-quick-add-panel";
+import { FlowSettingsDialog } from "@/components/studio/flow-settings-dialog";
 import { cn } from "@/lib/utils";
 import type {
   FlowDocument,
-  FlowNodeType,
   FlowStep,
   FlowValidationIssue,
   StudioStore,
 } from "@repo/shared";
 import { validateFlowSteps } from "@repo/shared";
-import {
-  AlertTriangle,
-  Folder,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Save,
-  Sparkles,
-  Terminal,
-  BarChart3,
-  Play,
-  ChevronDown,
-  ChevronUp,
-  Search,
-  Bell,
-  Settings,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   applyPositionsToSteps,
   buildFlowGraph,
@@ -63,9 +51,12 @@ import {
 } from "@/lib/flow-graph";
 import {
   createDefaultFlowStep,
-  FLOW_NODE_TYPE_OPTIONS,
+  DEFAULT_FLOW_NODE_TYPE,
 } from "@/lib/flow-default-step";
+import { useFlowCanvasInteractionSettings } from "@/hooks/use-flow-canvas-interaction-settings";
 import { useStudioResourceStatus } from "@/hooks/use-studio-resource-status";
+import { flowCanvasInteractionToReactFlow } from "@/lib/flow-canvas-interaction";
+import { FlowEdgeConfigPanel } from "./flow-edge-config-panel";
 import { FlowNodeConfigPanel } from "./flow-node-config-panel";
 import { StepFlowNode } from "./step-flow-node";
 
@@ -73,6 +64,8 @@ const nodeTypes = { step: StepFlowNode };
 
 const defaultEdgeOptions = {
   style: { stroke: "#5cf4ff", strokeWidth: 2.5 },
+  labelStyle: { fill: "#e2e8f0", fontSize: 11, fontWeight: 500 },
+  labelBgStyle: { fill: "rgba(15, 23, 42, 0.92)", fillOpacity: 1 },
 };
 
 function FitViewEffect({ nodeCount }: { nodeCount: number }) {
@@ -86,75 +79,34 @@ function FitViewEffect({ nodeCount }: { nodeCount: number }) {
   return null;
 }
 
-function NewNodeToolbar({
-  flowId,
-  maxOrder,
-  paletteType,
-  onPaletteTypeChange,
-  onCreate,
-}: {
-  flowId: string;
-  maxOrder: number;
-  paletteType: FlowNodeType;
-  onPaletteTypeChange: (t: FlowNodeType) => void;
-  onCreate: (step: FlowStep) => void;
-}) {
-  const rf = useReactFlow();
-  return (
-    <div className="border-outline-variant/10 border-t px-3 pt-4 pb-2">
-      <label className="mb-2 block">
-        <span className="text-muted-foreground mb-1 block font-mono text-[9px] uppercase tracking-wider">
-          Node type
-        </span>
-        <select
-          className="border-outline-variant/20 bg-surface-container-lowest text-foreground focus:border-primary w-full rounded-lg border p-2 text-xs outline-none"
-          value={paletteType}
-          onChange={(e) => onPaletteTypeChange(e.target.value as FlowNodeType)}
-          aria-label="Node type to add"
-        >
-          {FLOW_NODE_TYPE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        className="bg-primary text-primary-foreground hover:brightness-110 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition-all active:scale-95"
-        onClick={() => {
-          const b = document
-            .querySelector(".flow-builder-canvas .react-flow__viewport")
-            ?.getBoundingClientRect();
-          const x = b ? b.left + b.width * 0.45 : window.innerWidth * 0.5;
-          const y = b ? b.top + b.height * 0.35 : window.innerHeight * 0.4;
-          const pos = rf.screenToFlowPosition({ x, y });
-          const id = nanoid(10);
-          const step = createDefaultFlowStep(paletteType, id, maxOrder + 1, pos);
-          onCreate(step);
-        }}
-      >
-        <Plus className="size-4" aria-hidden />
-        Add node
-      </button>
-      <p className="text-muted-foreground mt-2 text-center font-mono text-[10px] uppercase tracking-wider">
-        Flow · {flowId.slice(0, 8)}…
-      </p>
-    </div>
-  );
-}
-
 function FlowEditorInner({
   flow,
   store,
   onSaved,
   onRefresh,
+  openFlowSettingsFromQuery = false,
 }: {
   flow: FlowDocument;
   store: StudioStore;
   onSaved?: () => void;
   onRefresh?: () => void;
+  openFlowSettingsFromQuery?: boolean;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [flowSettingsOpen, setFlowSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!openFlowSettingsFromQuery) return;
+    setFlowSettingsOpen(true);
+    const next = new URLSearchParams(searchParams.toString());
+    if (!next.has("flowSettings")) return;
+    next.delete("flowSettings");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [openFlowSettingsFromQuery, pathname, router, searchParams]);
+
   const [stepsSnapshot, setStepsSnapshot] = useState<FlowStep[]>(flow.steps);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<StepNodeData>>(
@@ -167,20 +119,52 @@ function FlowEditorInner({
   const [search, setSearch] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [paletteType, setPaletteType] = useState<FlowNodeType>("llm");
+  const [minimapVisible, setMinimapVisible] = useState(false);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [validationPanelOpen, setValidationPanelOpen] = useState(false);
   const [canvasRunPhase, setCanvasRunPhase] =
     useState<FlowCanvasRunPhase>("idle");
+  const [canvasInteractionOpen, setCanvasInteractionOpen] = useState(false);
+  const { settings: canvasInteraction, updateSettings, resetToDefaults } =
+    useFlowCanvasInteractionSettings();
+  const rfCanvas = useMemo(
+    () => flowCanvasInteractionToReactFlow(canvasInteraction),
+    [canvasInteraction],
+  );
   const { data: resourceStatus, loading: resourceStatusLoading } =
     useStudioResourceStatus();
 
   const onCanvasRunPhaseChange = useCallback((phase: FlowCanvasRunPhase) => {
     setCanvasRunPhase(phase);
   }, []);
+
+  const onFlowSelectionChange = useCallback(
+    ({
+      nodes: selNodes,
+      edges: selEdges,
+    }: OnSelectionChangeParams<Node<StepNodeData>>) => {
+      if (selEdges.length > 0) {
+        setSelectedEdgeId(selEdges[0].id);
+        setSelectedStepId(null);
+        setPanelOpen(false);
+        return;
+      }
+      if (selNodes.length === 0) {
+        setSelectedStepId(null);
+        setPanelOpen(false);
+        setSelectedEdgeId(null);
+        return;
+      }
+      setSelectedEdgeId(null);
+      setSelectedStepId(selNodes[0].id);
+      setPanelOpen(true);
+    },
+    [],
+  );
 
   useEffect(() => {
     setCanvasRunPhase("idle");
@@ -198,7 +182,14 @@ function FlowEditorInner({
     setNodes(g.nodes);
     setEdges(g.edges);
     setSelectedStepId(null);
+    setSelectedEdgeId(null);
   }, [flow.id, flow.updatedAt, setNodes, setEdges]);
+
+  useEffect(() => {
+    if (selectedEdgeId && !edges.some((e) => e.id === selectedEdgeId)) {
+      setSelectedEdgeId(null);
+    }
+  }, [edges, selectedEdgeId]);
 
   const validationResult = useMemo(
     () => validateFlowSteps(stepsSnapshot),
@@ -252,6 +243,23 @@ function FlowEditorInner({
     [stepsSnapshot, selectedStepId],
   );
 
+  const selectedEdge = useMemo(
+    () => edges.find((e) => e.id === selectedEdgeId) ?? null,
+    [edges, selectedEdgeId],
+  );
+
+  const selectedEdgeSourceTitle = useMemo(() => {
+    if (!selectedEdge) return "";
+    const s = stepsSnapshot.find((x) => x.id === selectedEdge.source);
+    return s ? stepToNodeData(s).title : selectedEdge.source;
+  }, [selectedEdge, stepsSnapshot]);
+
+  const selectedEdgeTargetTitle = useMemo(() => {
+    if (!selectedEdge) return "";
+    const s = stepsSnapshot.find((x) => x.id === selectedEdge.target);
+    return s ? stepToNodeData(s).title : selectedEdge.target;
+  }, [selectedEdge, stepsSnapshot]);
+
   const selectedStepValidationIssues = useMemo(
     () =>
       selectedStepId
@@ -274,6 +282,8 @@ function FlowEditorInner({
             ...params,
             id: `e-${nanoid(8)}`,
             style: defaultEdgeOptions.style,
+            labelStyle: defaultEdgeOptions.labelStyle,
+            labelBgStyle: defaultEdgeOptions.labelBgStyle,
           },
           eds,
         ),
@@ -281,6 +291,42 @@ function FlowEditorInner({
     },
     [setEdges],
   );
+
+  const onReconnect = useCallback<OnReconnect>(
+    (oldEdge, newConnection) => {
+      setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds));
+    },
+    [setEdges],
+  );
+
+  const handleEdgeLabelChange = useCallback(
+    (label: string) => {
+      if (!selectedEdgeId) return;
+      const trimmed = label.trim();
+      setEdges((eds) =>
+        eds.map((e) =>
+          e.id === selectedEdgeId
+            ? {
+                ...e,
+                label: trimmed.length > 0 ? trimmed : undefined,
+              }
+            : e,
+        ),
+      );
+    },
+    [selectedEdgeId, setEdges],
+  );
+
+  const handleDeleteSelectedEdge = useCallback(() => {
+    if (!selectedEdgeId) return;
+    setEdges((eds) => eds.filter((e) => e.id !== selectedEdgeId));
+    setSelectedEdgeId(null);
+  }, [selectedEdgeId, setEdges]);
+
+  const handleEdgePanelClose = useCallback(() => {
+    setSelectedEdgeId(null);
+    setEdges((eds) => eds.map((e) => ({ ...e, selected: false })));
+  }, [setEdges]);
 
   const persistFromState = useCallback(async () => {
     setSaveError(null);
@@ -298,11 +344,18 @@ function FlowEditorInner({
     }
     setSaving(true);
     try {
-      const outEdges: FlowDocument["edges"] = edges.map((e: Edge) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-      }));
+      const outEdges: FlowDocument["edges"] = edges.map((e: Edge) => {
+        const label =
+          typeof e.label === "string" && e.label.trim().length > 0
+            ? e.label.trim()
+            : undefined;
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          ...(label ? { label } : {}),
+        };
+      });
       const nextFlow: FlowDocument = {
         ...flow,
         steps,
@@ -353,6 +406,35 @@ function FlowEditorInner({
       if (!selectedStepId) return;
       let updated: FlowStep | undefined;
       setStepsSnapshot((prev) => {
+        const current = prev.find((s) => s.id === selectedStepId);
+        if (!current) return prev;
+
+        const newType = patch.type;
+        const patchKeys = Object.keys(patch);
+        const isTypeOnlyChange =
+          newType !== undefined &&
+          newType !== current.type &&
+          patchKeys.length === 1 &&
+          patchKeys[0] === "type";
+
+        if (isTypeOnlyChange) {
+          const pos = current.position ?? { x: 0, y: 0 };
+          let nextStep = createDefaultFlowStep(
+            newType,
+            current.id,
+            current.order,
+            pos,
+          );
+          if (current.displayLabel) {
+            nextStep = { ...nextStep, displayLabel: current.displayLabel };
+          }
+          const next = prev.map((s) =>
+            s.id === selectedStepId ? nextStep : s,
+          );
+          updated = next.find((s) => s.id === selectedStepId);
+          return next;
+        }
+
         const next = prev.map((s) =>
           s.id === selectedStepId ? { ...s, ...patch } : s,
         );
@@ -373,7 +455,7 @@ function FlowEditorInner({
     [selectedStepId, setNodes],
   );
 
-  const runHref = `/run?flowId=${encodeURIComponent(flow.id)}`;
+  const runHref = `/flows/${encodeURIComponent(flow.id)}`;
 
   const flowOptions = useMemo(
     () => store.flows.map((f) => ({ id: f.id, name: f.name })),
@@ -389,188 +471,84 @@ function FlowEditorInner({
           ? "Agent run completed"
           : "";
 
-  return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-20">
-      <header className="border-outline-variant/15 z-50 flex w-full shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-surface px-3 py-2 sm:h-16 sm:flex-nowrap sm:gap-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="text-foreground shrink-0 text-lg font-black tracking-tighter sm:text-xl">
-              GENUI
-            </span>
-            <span
-              className="text-muted-foreground hidden max-w-[12rem] truncate border-l border-border pl-3 text-xs font-medium sm:inline sm:max-w-xs sm:text-sm"
-              title={flow.name}
-            >
-              {flow.name}
-            </span>
-          </div>
-          <nav
-            className="hidden shrink-0 items-center gap-3 text-sm sm:flex sm:gap-6"
-            aria-label="Flow workspace"
-          >
-            <span className="border-primary text-primary border-b-2 pb-0.5 font-semibold">
-              Editor
-            </span>
-            <Link
-              href={`/flows/${encodeURIComponent(flow.id)}/settings`}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Flow settings
-            </Link>
-            <Link
-              href={runHref}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Runner
-            </Link>
-          </nav>
-        </div>
-        <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-4">
-          <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
-            <input
-              className="border-outline-variant/20 bg-surface-container-lowest focus:border-primary focus:ring-primary w-full rounded-xl border py-1.5 pr-9 pl-4 text-xs outline-none transition-all focus:ring-1"
-              placeholder="Search components…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search nodes"
-            />
-            <Search className="text-muted-foreground pointer-events-none absolute top-1.5 right-3 size-4" />
-          </div>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-primary hidden transition-colors lg:inline-flex"
-            aria-label="Notifications"
-          >
-            <Bell className="size-5" />
-          </button>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-primary hidden transition-colors lg:inline-flex"
-            aria-label="Settings"
-          >
-            <Settings className="size-5" />
-          </button>
-          <div
-            className="border-outline-variant/30 bg-surface-container-highest hidden size-8 shrink-0 overflow-hidden rounded-full border lg:block"
-            aria-hidden
-          />
-        </div>
-      </header>
+  const closePanels = useCallback(() => {
+    setValidationPanelOpen(false);
+    setTestPanelOpen(false);
+  }, []);
 
-      <div className="bg-surface-container-low border-outline-variant/10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 sm:h-12 sm:flex-nowrap sm:px-6">
-        <div className="text-foreground flex min-w-0 items-center gap-3 overflow-x-auto text-xs sm:gap-4">
-          <Link
-            href={`/flows/${encodeURIComponent(flow.id)}/settings`}
-            className="text-muted-foreground hover:text-foreground flex items-center gap-2 rounded-md font-medium transition-colors"
-          >
-            <SlidersHorizontal className="size-4 shrink-0 opacity-80" aria-hidden />
-            Flow settings
-          </Link>
-          <div className="bg-border h-4 w-px shrink-0" aria-hidden />
-          <Link
-            href="/flows"
-            className="text-muted-foreground hover:text-foreground flex items-center gap-2 rounded-md font-medium transition-colors"
-          >
-            <Folder className="size-4 shrink-0 opacity-80" aria-hidden />
-            All flows
-          </Link>
-          <div className="bg-border h-4 w-px shrink-0" aria-hidden />
-          <FlowQuickSwitch
-            mode="editor"
-            flows={flowOptions}
-            currentFlowId={flow.id}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 md:hidden">
-            <select
-              className="border-outline-variant/20 bg-surface-container-lowest text-foreground max-w-[7rem] rounded border px-1 py-1 text-[9px]"
-              value={paletteType}
-              onChange={(e) =>
-                setPaletteType(e.target.value as FlowNodeType)
-              }
-              aria-label="Node type to add"
-            >
-              {FLOW_NODE_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="bg-primary/15 text-primary hover:bg-primary/25 flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold uppercase"
-              onClick={() => {
-                const step = createDefaultFlowStep(
-                  paletteType,
-                  nanoid(10),
-                  maxOrder + 1,
-                  { x: 360, y: 200 },
-                );
-                handleAddStep(step);
-              }}
-            >
-              <Plus className="size-3.5" aria-hidden />
-              Add
-            </button>
-          </div>
-          <button
-            type="button"
-            className="bg-surface-container-highest/50 text-muted-foreground hover:bg-surface-container-highest flex items-center gap-2 rounded px-3 py-1.5 text-[10px] uppercase tracking-widest transition-all active:scale-95"
-            onClick={() => onRefresh?.()}
-          >
-            <RefreshCw className="size-3.5" aria-hidden />
-            Refresh
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "relative flex items-center gap-2 rounded px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all active:scale-95",
-              validationPanelOpen
-                ? "bg-destructive/15 text-destructive"
-                : validationResult.ok
-                  ? "bg-surface-container-highest/50 text-muted-foreground hover:bg-surface-container-highest"
-                  : "bg-destructive/10 text-destructive hover:bg-destructive/15",
-            )}
-            aria-expanded={validationPanelOpen}
-            aria-controls="flow-editor-validation-panel"
-            onClick={() => setValidationPanelOpen((o) => !o)}
-          >
-            <AlertTriangle className="size-3.5" aria-hidden />
-            Validation
-            {!validationResult.ok ? (
-              <span className="bg-destructive text-destructive-foreground min-w-[1.1rem] rounded px-1 py-0.5 text-center font-mono text-[9px]">
-                {validationResult.issues.length}
-              </span>
-            ) : null}
-            {validationPanelOpen ? (
-              <ChevronDown className="size-3.5" aria-hidden />
-            ) : (
-              <ChevronUp className="size-3.5" aria-hidden />
-            )}
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "flex items-center gap-2 rounded px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all active:scale-95",
-              testPanelOpen
-                ? "bg-primary/20 text-primary"
-                : "bg-surface-container-highest/50 text-muted-foreground hover:bg-surface-container-highest",
-            )}
-            aria-expanded={testPanelOpen}
-            aria-controls="flow-editor-test-run-panel"
-            onClick={() => setTestPanelOpen((o) => !o)}
-          >
-            <Terminal className="size-3.5" aria-hidden />
-            Test run
-            {testPanelOpen ? (
-              <ChevronDown className="size-3.5" aria-hidden />
-            ) : (
-              <ChevronUp className="size-3.5" aria-hidden />
-            )}
-          </button>
-        </div>
-      </div>
+  useEffect(() => {
+    if (!validationPanelOpen && !testPanelOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setValidationPanelOpen(false);
+      setTestPanelOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [validationPanelOpen, testPanelOpen]);
+
+  const bottomSheetOpen = validationPanelOpen || testPanelOpen;
+
+  return (
+    <TooltipProvider delay={350}>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <FlowEditorTopHud
+        flowName={flow.name}
+        flowId={flow.id}
+        runHref={runHref}
+        onOpenFlowSettings={() => setFlowSettingsOpen(true)}
+        search={search}
+        onSearchChange={setSearch}
+        flowOptions={flowOptions}
+        onRefresh={onRefresh}
+        validationPanelOpen={validationPanelOpen}
+        onValidationPanelToggle={() => {
+          setValidationPanelOpen((o) => {
+            const next = !o;
+            if (next) setTestPanelOpen(false);
+            return next;
+          });
+        }}
+        validationOk={validationResult.ok}
+        issueCount={validationResult.issues.length}
+        testPanelOpen={testPanelOpen}
+        onTestPanelToggle={() => {
+          setTestPanelOpen((o) => {
+            const next = !o;
+            if (next) setValidationPanelOpen(false);
+            return next;
+          });
+        }}
+        onMobileAdd={() => {
+          const step = createDefaultFlowStep(
+            DEFAULT_FLOW_NODE_TYPE,
+            nanoid(10),
+            maxOrder + 1,
+            { x: 360, y: 200 },
+          );
+          handleAddStep(step);
+        }}
+        onClosePanels={closePanels}
+        onSave={() => void persistFromState()}
+        saving={saving}
+        onOpenCanvasInteraction={() => setCanvasInteractionOpen(true)}
+      />
+
+      <FlowCanvasInteractionDialog
+        open={canvasInteractionOpen}
+        onOpenChange={setCanvasInteractionOpen}
+        settings={canvasInteraction}
+        onChange={updateSettings}
+        onReset={resetToDefaults}
+      />
+
+      <FlowSettingsDialog
+        flowId={flow.id}
+        open={flowSettingsOpen}
+        onOpenChange={setFlowSettingsOpen}
+        onFlowDeleted={() => router.push("/flows")}
+      />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <span className="sr-only" aria-live="polite">
@@ -581,7 +559,13 @@ function FlowEditorInner({
             ? "Flow validation passed."
             : `${validationResult.issues.length} flow validation issue(s).`}
         </span>
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+
+        <div
+          className={cn(
+            "relative flex min-h-0 min-w-0 flex-1 flex-col",
+            bottomSheetOpen && "pb-[min(44vh,380px)] md:pb-[min(40vh,360px)]",
+          )}
+        >
           <div
             className={cn(
               "flow-builder-canvas bg-surface-container-lowest ring-outline-variant/30 relative flex min-h-0 w-full flex-1 flex-col rounded-lg ring-1",
@@ -591,28 +575,40 @@ function FlowEditorInner({
             )}
           >
             <ReactFlow
-              className="!bg-transparent h-full min-h-[min(320px,50dvh)] w-full flex-1 touch-pan-y [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane:active]:cursor-grabbing"
+              className={cn(
+                "!bg-transparent h-full min-h-[min(320px,50dvh)] w-full flex-1",
+                rfCanvas.paneCursorClassName,
+              )}
+              aria-label="Flow builder canvas"
               nodes={displayNodes}
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              onSelectionChange={onFlowSelectionChange}
               onNodeClick={(_, n) => {
+                setSelectedEdgeId(null);
                 setSelectedStepId(n.id);
                 setPanelOpen(true);
               }}
               onPaneClick={() => {
                 setSelectedStepId(null);
                 setPanelOpen(false);
+                setSelectedEdgeId(null);
               }}
+              onReconnect={onReconnect}
+              deleteKeyCode={["Backspace", "Delete"]}
+              edgesReconnectable
               nodeTypes={nodeTypes}
               defaultEdgeOptions={defaultEdgeOptions}
               connectionLineStyle={{ stroke: "#9ae8ff", strokeWidth: 2.5 }}
               fitView
-              panOnDrag={[1, 2]}
+              panOnDrag={rfCanvas.panOnDrag}
+              zoomOnScroll={rfCanvas.zoomOnScroll}
+              panOnScroll={rfCanvas.panOnScroll}
               zoomOnPinch
               zoomOnDoubleClick={false}
-              selectionOnDrag={false}
+              selectionOnDrag={rfCanvas.selectionOnDrag}
               proOptions={{ hideAttribution: true }}
             >
               <Background
@@ -622,37 +618,29 @@ function FlowEditorInner({
                 size={1.35}
                 color="rgba(148, 163, 184, 0.42)"
               />
-              <Controls className="!bg-surface-container-high !border-outline-variant/20 !shadow-lg" />
-              <Panel
-                position="top-left"
-                className="!m-4 hidden w-56 md:block"
-              >
-                <div
-                  className="border-outline-variant/10 bg-surface-container-low rounded-lg border shadow-lg"
-                  aria-label="Flow actions"
-                >
-                  <div className="px-4 py-4">
-                    <div className="text-foreground text-sm font-bold">
-                      {flow.name}
-                    </div>
-                    <div className="text-muted-foreground mt-1 text-[10px] tracking-wide">
-                      Flow builder
-                    </div>
-                  </div>
-                  <NewNodeToolbar
-                    flowId={flow.id}
-                    maxOrder={maxOrder}
-                    paletteType={paletteType}
-                    onPaletteTypeChange={setPaletteType}
-                    onCreate={handleAddStep}
-                  />
-                </div>
-              </Panel>
-              <FitViewEffect nodeCount={displayNodes.filter((n) => !n.hidden).length} />
+              <FlowEditorCanvasRail
+                minimapVisible={minimapVisible}
+                onMinimapToggle={() => setMinimapVisible((v) => !v)}
+              />
+              <FlowZoomIndicator />
+              <FlowNodeQuickAddPanel
+                maxOrder={maxOrder}
+                onCreate={handleAddStep}
+              />
+              <FitViewEffect
+                nodeCount={displayNodes.filter((n) => !n.hidden).length}
+              />
             </ReactFlow>
           </div>
 
-          <div className="pointer-events-none absolute right-3 bottom-4 left-3 z-30 sm:right-auto sm:bottom-8 sm:left-8">
+          <div
+            className={cn(
+              "pointer-events-none absolute right-3 left-3 z-30 sm:right-auto sm:left-8",
+              bottomSheetOpen
+                ? "bottom-[min(46vh,400px)] sm:bottom-[min(42vh,380px)]"
+                : "bottom-[max(1rem,env(safe-area-inset-bottom))] sm:bottom-8",
+            )}
+          >
             <Button
               type="button"
               variant="synth"
@@ -671,7 +659,12 @@ function FlowEditorInner({
 
           {saveError ? (
             <p
-              className="text-destructive absolute right-3 bottom-20 left-3 z-30 max-w-sm text-sm sm:right-auto sm:bottom-24 sm:left-8"
+              className={cn(
+                "text-destructive absolute right-3 left-3 z-30 max-w-full min-w-0 break-words text-sm sm:right-auto sm:left-8 sm:max-w-sm",
+                bottomSheetOpen
+                  ? "bottom-[calc(min(46vh,400px)+4.5rem)]"
+                  : "bottom-[calc(5.5rem+env(safe-area-inset-bottom))]",
+              )}
               role="alert"
             >
               {saveError}
@@ -683,14 +676,16 @@ function FlowEditorInner({
           id="flow-editor-validation-panel"
           role="region"
           aria-label="Flow validation log"
+          aria-hidden={!validationPanelOpen}
+          inert={!validationPanelOpen}
           className={cn(
-            "border-outline-variant/15 bg-surface-container-low/95 shrink-0 backdrop-blur-md",
+            "border-outline-variant/20 bg-surface-container-low/98 absolute right-2 bottom-2 left-2 z-40 flex max-h-[min(42vh,380px)] min-h-[100px] flex-col overflow-hidden rounded-2xl border shadow-[0_-8px_40px_rgba(0,0,0,0.35)] backdrop-blur-md transition-[opacity,transform] duration-200 md:right-4 md:left-4",
             validationPanelOpen
-              ? "flex max-h-[min(36vh,320px)] min-h-[120px] flex-col border-t p-3"
-              : "hidden",
+              ? "translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-4 opacity-0",
           )}
         >
-          <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2 p-3 pb-0">
             <p className="text-muted-foreground text-xs">
               UX checks run on every edit and before save. Failed steps are
               outlined on the canvas; details mirror the browser console in dev (
@@ -707,55 +702,59 @@ function FlowEditorInner({
               </span>
             )}
           </div>
-          {validationResult.ok ? (
-            <p className="text-muted-foreground text-sm">
-              No blocking issues for system/user prompts, models, tools, or
-              gate/output text.
-            </p>
-          ) : (
-            <ul
-              className="border-outline-variant/20 bg-surface-container-highest/40 font-mono text-[11px] leading-relaxed overflow-y-auto rounded-lg border p-3"
-              role="list"
-            >
-              {validationResult.issues.map((issue, idx) => (
-                <li key={`${issue.stepId}-${issue.field ?? "x"}-${idx}`}>
-                  <span className="text-destructive">{issue.stepId}</span>
-                  <span className="text-muted-foreground">
-                    {" "}
-                    ({issue.stepType}
-                    {issue.field ? ` · ${issue.field}` : ""}):{" "}
-                  </span>
-                  {issue.message}
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3">
+            {validationResult.ok ? (
+              <p className="text-muted-foreground text-sm">
+                No blocking issues for system/user prompts, models, tools, or
+                gate/output text.
+              </p>
+            ) : (
+              <ul
+                className="border-outline-variant/20 bg-surface-container-highest/40 font-mono text-[11px] leading-relaxed overflow-y-auto rounded-lg border p-3"
+                role="list"
+              >
+                {validationResult.issues.map((issue, idx) => (
+                  <li key={`${issue.stepId}-${issue.field ?? "x"}-${idx}`}>
+                    <span className="text-destructive">{issue.stepId}</span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      ({issue.stepType}
+                      {issue.field ? ` · ${issue.field}` : ""}):{" "}
+                    </span>
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         <div
           id="flow-editor-test-run-panel"
           role="region"
           aria-label="Test run against this flow"
+          aria-hidden={!testPanelOpen}
+          inert={!testPanelOpen}
           className={cn(
-            "border-outline-variant/15 bg-surface-container-low/95 shrink-0 backdrop-blur-md",
+            "border-outline-variant/20 bg-surface-container-low/98 absolute right-2 bottom-2 left-2 z-40 flex max-h-[min(46vh,420px)] min-h-[180px] flex-col overflow-hidden rounded-2xl border shadow-[0_-8px_40px_rgba(0,0,0,0.35)] backdrop-blur-md transition-[opacity,transform] duration-200 md:right-4 md:left-4",
             testPanelOpen
-              ? "flex max-h-[min(42vh,420px)] min-h-[200px] flex-col border-t p-3"
-              : "hidden",
+              ? "translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-4 opacity-0",
           )}
         >
-          <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2 p-3 pb-0">
             <p className="text-muted-foreground text-xs">
-              Same runner as{" "}
+              Same runner as the{" "}
               <Link
                 href={runHref}
                 className="text-primary font-medium underline-offset-4 hover:underline"
               >
-                Run page
+                full flow workspace
               </Link>
               — messages stay in this session until you close the panel.
             </p>
           </div>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 pb-3">
             <RunChat
               key={flow.id}
               flowId={flow.id}
@@ -767,9 +766,19 @@ function FlowEditorInner({
           </div>
         </div>
 
+        <FlowEdgeConfigPanel
+          edge={selectedEdge}
+          open={selectedEdgeId !== null && selectedEdge !== null}
+          sourceTitle={selectedEdgeSourceTitle}
+          targetTitle={selectedEdgeTargetTitle}
+          onClose={handleEdgePanelClose}
+          onLabelChange={handleEdgeLabelChange}
+          onDelete={handleDeleteSelectedEdge}
+        />
+
         <FlowNodeConfigPanel
           step={selectedStep}
-          open={panelOpen && selectedStep !== null}
+          open={panelOpen && selectedStep !== null && selectedEdgeId === null}
           prompts={store.prompts}
           tools={store.tools}
           resourceStatus={resourceStatus}
@@ -779,71 +788,8 @@ function FlowEditorInner({
           onApply={handleApplyPatch}
         />
       </div>
-
-      <nav
-        className="border-outline-variant/15 bg-background/80 fixed right-0 bottom-0 left-0 z-50 flex items-center justify-around gap-1 border-t px-2 py-2 shadow-[0_-4px_20px_rgba(0,229,255,0.05)] backdrop-blur-xl md:hidden"
-        aria-label="Flow quick actions"
-      >
-        <Link
-          href={runHref}
-          className="text-primary bg-primary/10 flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold uppercase transition-all active:scale-90"
-        >
-          <Play className="size-5" aria-hidden />
-          Run flow
-        </Link>
-        <button
-          type="button"
-          className={cn(
-            "relative flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold uppercase transition-all active:scale-90",
-            validationPanelOpen
-              ? "text-destructive bg-destructive/10"
-              : "text-muted-foreground hover:bg-muted hover:text-primary",
-          )}
-          onClick={() => setValidationPanelOpen((o) => !o)}
-          aria-expanded={validationPanelOpen}
-        >
-          <AlertTriangle className="size-5" aria-hidden />
-          Validation
-          {!validationResult.ok ? (
-            <span className="bg-destructive text-destructive-foreground absolute -top-0.5 -right-0.5 min-w-[14px] rounded-full px-1 text-center font-mono text-[8px] leading-tight">
-              {validationResult.issues.length}
-            </span>
-          ) : null}
-        </button>
-        <button
-          type="button"
-          className="text-muted-foreground hover:bg-muted hover:text-primary flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold uppercase transition-all active:scale-90"
-          onClick={() => setTestPanelOpen((o) => !o)}
-          aria-expanded={testPanelOpen}
-        >
-          <Terminal className="size-5" aria-hidden />
-          Test run
-        </button>
-        <button
-          type="button"
-          className="text-muted-foreground hover:bg-muted hover:text-primary flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] uppercase transition-all active:scale-90 disabled:opacity-50"
-          disabled={saving}
-          onClick={() => void persistFromState()}
-        >
-          <Save className="size-5" aria-hidden />
-          Save
-        </button>
-        <Link
-          href="/mcp"
-          className="text-muted-foreground hover:bg-muted hover:text-primary hidden flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] uppercase transition-all sm:flex"
-        >
-          <Terminal className="size-5" aria-hidden />
-          Terminal
-        </Link>
-        <Link
-          href="/analytics"
-          className="text-muted-foreground hover:bg-muted hover:text-primary hidden flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] uppercase transition-all sm:flex"
-        >
-          <BarChart3 className="size-5" aria-hidden />
-          Metrics
-        </Link>
-      </nav>
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -852,11 +798,13 @@ export function FlowEditor({
   store,
   onSaved,
   onRefresh,
+  openFlowSettingsFromQuery = false,
 }: {
   flow: FlowDocument;
   store: StudioStore;
   onSaved?: () => void;
   onRefresh?: () => void;
+  openFlowSettingsFromQuery?: boolean;
 }) {
   return (
     <ReactFlowProvider>
@@ -865,6 +813,7 @@ export function FlowEditor({
         store={store}
         onSaved={onSaved}
         onRefresh={onRefresh}
+        openFlowSettingsFromQuery={openFlowSettingsFromQuery}
       />
     </ReactFlowProvider>
   );

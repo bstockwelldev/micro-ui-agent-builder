@@ -27,6 +27,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  studioCardEditHint,
+  studioResourceCardInteractiveClass,
+  StudioCardDeleteIconButton,
+  StudioCardEditIconButton,
+} from "@/components/studio/studio-resource-card-actions";
 import { StudioResourceStatusBadge } from "@/components/studio/studio-resource-status-badge";
 import { useStudioApi } from "@/hooks/use-studio-api";
 import { useStudioResourceStatus } from "@/hooks/use-studio-resource-status";
@@ -147,7 +153,19 @@ export default function McpPage() {
               const reach = mcpStatusById(statusPayload, s.id);
               return (
               <li key={s.id}>
-                <Card>
+                <Card
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Edit MCP server ${s.name}`}
+                  className={cn(studioResourceCardInteractiveClass)}
+                  onClick={() => openEdit(s)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openEdit(s);
+                    }
+                  }}
+                >
                   <CardHeader>
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
@@ -162,31 +180,27 @@ export default function McpPage() {
                           />
                         ) : null}
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
+                      <div
+                        className="flex flex-wrap items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <StudioCardEditIconButton
+                          label={s.name}
                           disabled={saving || !data}
                           onClick={() => openEdit(s)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:bg-destructive/10"
+                        />
+                        <StudioCardDeleteIconButton
+                          label={s.name}
                           disabled={saving || !data}
                           onClick={() => {
                             clearSaveError();
                             setDeleteTarget(s);
                           }}
-                        >
-                          Delete
-                        </Button>
+                        />
                       </div>
                     </div>
+                    <p className="text-muted-foreground pt-1 text-[11px]">{studioCardEditHint}</p>
                     <CardDescription className="font-mono text-xs break-all">
                       {s.url}
                       {reach?.note ? (

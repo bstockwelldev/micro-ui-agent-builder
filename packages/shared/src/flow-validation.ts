@@ -1,4 +1,5 @@
 import type { FlowNodeType, FlowStep } from "./schemas.js";
+import { parseGenuiSurface } from "./schemas.js";
 
 export type FlowValidationIssue = {
   stepId: string;
@@ -44,6 +45,48 @@ export function validateFlowSteps(steps: FlowStep[]): {
         if (!s.model?.trim()) {
           push("model", "Model id is required for this step.");
         }
+        if (s.maxToolIterations != null) {
+          if (
+            !Number.isInteger(s.maxToolIterations) ||
+            s.maxToolIterations < 1 ||
+            s.maxToolIterations > 64
+          ) {
+            push(
+              "maxToolIterations",
+              "Max tool iterations must be an integer from 1 to 64.",
+            );
+          }
+        }
+        break;
+      }
+      case "tool_loop": {
+        if (!s.model?.trim()) {
+          push("model", "Model id is required for this step.");
+        }
+        if (s.maxToolIterations == null) {
+          push(
+            "maxToolIterations",
+            "Set max tool iterations (1–64) for the tool-loop agent.",
+          );
+        } else if (
+          !Number.isInteger(s.maxToolIterations) ||
+          s.maxToolIterations < 1 ||
+          s.maxToolIterations > 64
+        ) {
+          push(
+            "maxToolIterations",
+            "Max tool iterations must be an integer from 1 to 64.",
+          );
+        }
+        break;
+      }
+      case "code_exec": {
+        if (!s.content?.trim()) {
+          push(
+            "content",
+            "Describe code execution expectations, constraints, or sandbox contract.",
+          );
+        }
         break;
       }
       case "tool": {
@@ -61,6 +104,16 @@ export function validateFlowSteps(steps: FlowStep[]): {
               ? "Enter checkpoint instructions for the human gate."
               : "Describe the output contract or format expectations.",
           );
+        }
+        if (s.type === "human_gate" && s.genuiCheckpointSurfaceJson?.trim()) {
+          try {
+            parseGenuiSurface(JSON.parse(s.genuiCheckpointSurfaceJson));
+          } catch {
+            push(
+              "genuiCheckpointSurfaceJson",
+              "GenUI checkpoint must be valid JSON matching the GenUI surface schema.",
+            );
+          }
         }
         break;
       }

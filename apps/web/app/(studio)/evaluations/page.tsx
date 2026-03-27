@@ -18,10 +18,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  studioCardEditHint,
+  studioResourceCardInteractiveClass,
+  StudioCardDeleteIconButton,
+  StudioCardEditIconButton,
+} from "@/components/studio/studio-resource-card-actions";
 import { StudioResourceStatusBadge } from "@/components/studio/studio-resource-status-badge";
 import { useStudioApi } from "@/hooks/use-studio-api";
 import { useStudioResourceStatus } from "@/hooks/use-studio-resource-status";
 import { llmProfileStatusById } from "@/lib/studio-resource-status-helpers";
+import { cn } from "@/lib/utils";
 
 const checks = [
   { name: "Prompt injection shield", coverage: "Flows + Run", state: "planned" as const },
@@ -175,7 +182,19 @@ export default function EvaluationsPage() {
                   const prof = llmProfileStatusById(statusPayload, p.id);
                   return (
                   <li key={p.id}>
-                    <Card>
+                    <Card
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Edit LLM profile ${p.name}`}
+                      className={cn(studioResourceCardInteractiveClass)}
+                      onClick={() => openEdit(p)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openEdit(p);
+                        }
+                      }}
+                    >
                       <CardHeader>
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="space-y-1">
@@ -191,30 +210,28 @@ export default function EvaluationsPage() {
                               ) : null}
                             </div>
                             <CardDescription className="font-mono text-xs">{p.id}</CardDescription>
+                            <p className="text-muted-foreground pt-1 text-[11px]">
+                              {studioCardEditHint}
+                            </p>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
+                          <div
+                            className="flex flex-wrap items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <StudioCardEditIconButton
+                              label={p.name}
                               disabled={saving || !data}
                               onClick={() => openEdit(p)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="text-destructive hover:bg-destructive/10"
+                            />
+                            <StudioCardDeleteIconButton
+                              label={p.name}
                               disabled={saving || !data}
                               onClick={() => {
                                 clearSaveError();
                                 setDeleteTarget(p);
                               }}
-                            >
-                              Delete
-                            </Button>
+                            />
                           </div>
                         </div>
                       </CardHeader>

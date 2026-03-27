@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import { FlowEditor } from "@/components/flow/flow-editor";
 import { StudioPage } from "@/components/studio/studio-page";
@@ -12,7 +12,9 @@ import { useStudioApi } from "@/hooks/use-studio-api";
 
 export default function FlowEditorPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : "";
+  const openFlowSettingsFromQuery = searchParams.get("flowSettings") === "1";
   const { data, loading, error, refetch } = useStudioApi();
   const flow = data?.flows.find((f) => f.id === id);
 
@@ -22,6 +24,7 @@ export default function FlowEditorPage() {
         <FlowEditor
           flow={flow}
           store={data}
+          openFlowSettingsFromQuery={openFlowSettingsFromQuery}
           onSaved={() => void refetch()}
           onRefresh={() => void refetch()}
         />

@@ -17,6 +17,24 @@ export function createDefaultFlowStep(
         content:
           "You are an expert architect. Analyze the flow defined in {{context}} and suggest structural optimizations.",
       };
+    case "tool_loop":
+      return {
+        ...base,
+        type: "tool_loop",
+        model: "gemini-2.5-flash-lite",
+        toolChoice: "auto",
+        maxToolIterations: 8,
+        content:
+          "You are a tool-using agent. Call catalog tools as needed; iterate until the task is complete or you must ask the user.",
+      };
+    case "code_exec":
+      return {
+        ...base,
+        type: "code_exec",
+        codeExecLanguage: "javascript",
+        content:
+          "When execution is needed, emit correct code for the selected language; prefer the linked code/sandbox tool when available.",
+      };
     case "guardrail":
       return {
         ...base,
@@ -59,8 +77,13 @@ export function createDefaultFlowStep(
   }
 }
 
+/** Default step kind when adding a node from the palette (+) or mobile add — change type in the node config panel. */
+export const DEFAULT_FLOW_NODE_TYPE = "llm" satisfies FlowNodeType;
+
 export const FLOW_NODE_TYPE_OPTIONS: { value: FlowNodeType; label: string }[] = [
   { value: "llm", label: "Agent model" },
+  { value: "tool_loop", label: "Tool-loop agent" },
+  { value: "code_exec", label: "Code execution" },
   { value: "guardrail", label: "Input guardrail" },
   { value: "rubric", label: "Prompt rubric (static)" },
   { value: "branch", label: "Branch gate" },
