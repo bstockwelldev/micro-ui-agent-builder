@@ -11,8 +11,6 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        synth:
-          "border-transparent bg-[linear-gradient(135deg,var(--synth-primary-from)_0%,var(--synth-primary-to)_100%)] text-[color:var(--synth-on-primary)] shadow-none transition-expressive [a]:hover:brightness-110 focus-visible:ring-[#00daf3]/40",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
@@ -22,6 +20,8 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        synth:
+          "border-primary/45 bg-primary/12 text-primary hover:bg-primary/20 focus-visible:border-primary/60 focus-visible:ring-primary/25 dark:border-primary/35 dark:bg-primary/15 dark:hover:bg-primary/25",
       },
       size: {
         default:

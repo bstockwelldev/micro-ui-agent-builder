@@ -2,6 +2,7 @@ import { dynamicTool, type ToolSet } from "ai";
 import { z } from "zod";
 
 import type { FlowDocument, StudioStore, ToolDefinition } from "@repo/shared";
+import { genuiSurfaceSchema } from "@repo/shared";
 
 import { buildMcpToolSetForServers } from "./mcp-bridge";
 import { fetchMcpServerIdsForFlowFromSupabase } from "./mcp-registry-supabase";
@@ -201,6 +202,19 @@ export async function buildToolSetForAgentRun(
       merged = { ...merged, ...mcpTools };
     }
   }
+
+  merged = {
+    ...merged,
+    emit_genui_surface: dynamicTool({
+      description:
+        "Emit a GenUI surface (Stack, Text, Button, Card, FormField) rendered inline in the chat. Use for structured UI the user should see in the transcript.",
+      inputSchema: genuiSurfaceSchema,
+      execute: async (input) => ({
+        genuiSurface: genuiSurfaceSchema.parse(input),
+        finishedAt: new Date().toISOString(),
+      }),
+    }),
+  };
 
   const names = Object.keys(merged);
   const appendix =

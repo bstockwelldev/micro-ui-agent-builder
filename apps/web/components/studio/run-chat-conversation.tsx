@@ -3,19 +3,55 @@
 import { useChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
+  getToolName,
+  isReasoningUIPart,
   isTextUIPart,
+  isToolUIPart,
   lastAssistantMessageIsCompleteWithApprovalResponses,
   type UIMessage,
 } from "ai";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { FlowCanvasRunPhase } from "@/app/(studio)/run/run-types";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message";
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputButton,
+  PromptInputFooter,
+  PromptInputProvider,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+  usePromptInputController,
+} from "@/components/ai-elements/prompt-input";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { GenuiSurfaceView } from "@/components/genui-renderer";
 import { useStudioRunner } from "@/components/studio/studio-runner-context";
 import { createAgentRunFetch } from "@/lib/agent-run-fetch";
+import { tryParseGenuiSurfaceFromToolOutput } from "@/lib/genui-tool-output";
 import { cn } from "@/lib/utils";
 
 type AddToolApprovalResponse = (args: {
@@ -24,39 +60,35 @@ type AddToolApprovalResponse = (args: {
   reason?: string;
 }) => void | PromiseLike<void>;
 
-function renderPart(
-  part: UIMessage["parts"][number],
+type RunnerToolUIPart = Parameters<typeof getToolName>[0];
+
+function toolPartKey(part: { toolCallId: string }, index: number) {
+  return `${part.toolCallId}-${index}`;
+}
+
+function renderToolPart(
+  part: RunnerToolUIPart,
+  index: number,
   addToolApprovalResponse: AddToolApprovalResponse,
 ) {
-  if (isTextUIPart(part)) {
-    return (
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">{part.text}</p>
-    );
-  }
-  if (part.type === "reasoning") {
-    return (
-      <pre className="bg-surface-container-high/80 text-muted-foreground rounded-md p-2 font-mono text-xs">
-        {part.text}
-      </pre>
-    );
-  }
-  if (part.type === "dynamic-tool") {
-    const header = (
-      <div className="text-muted-foreground text-xs font-medium">
-        Tool: {part.toolName}{" "}
-        <span className="font-mono">({part.toolCallId})</span>
-      </div>
-    );
-    if (part.state === "approval-requested") {
-      return (
-        <div className="bg-surface-container-high ring-outline-variant/25 space-y-2 rounded-md p-3 ring-1">
-          {header}
-          <pre className="max-h-40 overflow-auto text-xs">
-            {JSON.stringify(part.input, null, 2)}
-          </pre>
-          <div className="flex gap-2">
+  const name = getToolName(part);
+  const title =
+    "title" in part && typeof (part as { title?: unknown }).title === "string"
+      ? (part as { title: string }).title
+      : name;
+
+  return (
+    <Tool defaultOpen={part.state !== "output-available"} key={toolPartKey(part, index)}>
+      <ToolHeader state={part.state} title={title} type={part.type} />
+      <ToolContent>
+        {"input" in part && part.input !== undefined && part.state !== "input-streaming" ? (
+          <ToolInput input={part.input} />
+        ) : null}
+        {part.state === "approval-requested" ? (
+          <div className="flex flex-wrap gap-2 border-t p-4">
             <Button
               size="sm"
+              type="button"
               variant="synth"
               onClick={() =>
                 void addToolApprovalResponse({
@@ -69,6 +101,7 @@ function renderPart(
             </Button>
             <Button
               size="sm"
+              type="button"
               variant="outline"
               onClick={() =>
                 void addToolApprovalResponse({
@@ -81,38 +114,122 @@ function renderPart(
               Deny
             </Button>
           </div>
-        </div>
-      );
-    }
-    if (part.state === "output-available") {
-      return (
-        <div className="bg-surface-container-high ring-outline-variant/25 space-y-1 rounded-md p-3 ring-1">
-          {header}
-          <pre className="max-h-48 overflow-auto text-xs">
-            {JSON.stringify(part.output, null, 2)}
-          </pre>
-        </div>
-      );
-    }
-    if (part.state === "output-denied") {
-      return (
-        <div className="bg-destructive/10 text-destructive ring-destructive/30 space-y-1 rounded-md p-3 text-sm ring-1">
-          {header}
-          <p>Execution denied.</p>
-        </div>
-      );
-    }
+        ) : null}
+        {part.state === "output-denied" ? (
+          <div className="text-destructive border-t p-4 text-sm">Execution denied.</div>
+        ) : null}
+        {part.state === "output-available" ? (
+          <div className="space-y-3 border-t">
+            {(() => {
+              const surface = tryParseGenuiSurfaceFromToolOutput(part.output);
+              if (surface) {
+                return (
+                  <div className="p-4">
+                    <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
+                      Generative UI
+                    </p>
+                    <GenuiSurfaceView surface={surface} />
+                  </div>
+                );
+              }
+              return (
+                <ToolOutput errorText={undefined} output={part.output} />
+              );
+            })()}
+          </div>
+        ) : null}
+        {part.state === "output-error" ? (
+          <ToolOutput errorText={part.errorText} output={undefined} />
+        ) : null}
+      </ToolContent>
+    </Tool>
+  );
+}
+
+function renderPart(
+  part: UIMessage["parts"][number],
+  index: number,
+  addToolApprovalResponse: AddToolApprovalResponse,
+) {
+  if (isTextUIPart(part)) {
     return (
-      <div className="bg-surface-container-low ring-outline-variant/20 rounded-md p-2 text-xs ring-1">
-        {header}
-        <span className="text-muted-foreground">State: {part.state}</span>
-      </div>
+      <MessageResponse className="prose prose-sm dark:prose-invert max-w-none">
+        {part.text}
+      </MessageResponse>
     );
   }
+  if (isReasoningUIPart(part)) {
+    return (
+      <Reasoning
+        defaultOpen
+        isStreaming={part.state === "streaming"}
+        key={`reasoning-${index}`}
+      >
+        <ReasoningTrigger />
+        <ReasoningContent>{part.text}</ReasoningContent>
+      </Reasoning>
+    );
+  }
+  if (isToolUIPart(part)) {
+    return renderToolPart(part, index, addToolApprovalResponse);
+  }
   return (
-    <pre className="bg-surface-container-lowest/80 max-h-32 overflow-auto rounded p-2 font-mono text-[10px]">
+    <pre
+      className="bg-muted/50 max-h-32 overflow-auto rounded-md p-2 font-mono text-[10px]"
+      key={`fallback-${index}`}
+    >
       {JSON.stringify(part, null, 2)}
     </pre>
+  );
+}
+
+function ChatPromptForm({
+  busy,
+  status,
+  onSend,
+  stop,
+}: {
+  busy: boolean;
+  status: "ready" | "submitted" | "streaming" | "error";
+  onSend: (text: string) => void;
+  stop: () => void;
+}) {
+  const { textInput } = usePromptInputController();
+  const canSend = textInput.value.trim().length > 0;
+
+  return (
+    <PromptInput
+      className="w-full"
+      onSubmit={({ text }) => {
+        const trimmed = text.trim();
+        if (!trimmed || busy) return;
+        onSend(trimmed);
+      }}
+    >
+      <PromptInputBody>
+        <PromptInputTextarea
+          aria-label="Chat message"
+          disabled={busy}
+          placeholder="Message the agent…"
+        />
+      </PromptInputBody>
+      <PromptInputFooter>
+        <PromptInputTools className="min-w-0 flex-1" />
+        <div className="flex shrink-0 items-center gap-1">
+          {busy ? (
+            <PromptInputButton
+              className="text-destructive hover:text-destructive"
+              type="button"
+              variant="outline"
+              onClick={() => void stop()}
+            >
+              Stop
+            </PromptInputButton>
+          ) : null}
+          <PromptInputSubmit disabled={busy || !canSend} status={status} />
+        </div>
+      </PromptInputFooter>
+    </PromptInput>
   );
 }
 
@@ -131,7 +248,6 @@ export function RunChatConversation({
   suspendWhenHidden?: boolean;
   onCanvasRunPhaseChange?: (phase: FlowCanvasRunPhase) => void;
 }) {
-  const [input, setInput] = useState("");
   const [preferOllama, setPreferOllama] = useState(false);
 
   const studio = useStudioRunner();
@@ -171,6 +287,16 @@ export function RunChatConversation({
   });
 
   const busy = status === "streaming" || status === "submitted";
+
+  const handleSend = useCallback(
+    (text: string) => {
+      if (variant === "dock" && appendLog) {
+        appendLog("info", "User sent message", { text, preferOllama });
+      }
+      void sendMessage({ text });
+    },
+    [variant, appendLog, preferOllama, sendMessage],
+  );
 
   useEffect(() => {
     if (variant !== "dock" || !appendLog) return;
@@ -246,19 +372,7 @@ export function RunChatConversation({
     }
   }, [status, visible, suspendWhenHidden, onCanvasRunPhaseChange]);
 
-  const onSubmitMessage = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      const text = input.trim();
-      if (!text || busy) return;
-      setInput("");
-      if (variant === "dock" && appendLog) {
-        appendLog("info", "User sent message", { text, preferOllama });
-      }
-      void sendMessage({ text });
-    },
-    [input, busy, variant, appendLog, preferOllama, sendMessage],
-  );
+  const conversationLayout = variant === "panel" ? "panel" : "drawer";
 
   const ollamaToggle = (
     <div className="flex items-center gap-2">
@@ -282,8 +396,6 @@ export function RunChatConversation({
     </div>
   );
 
-  const conversationLayout = variant === "panel" ? "panel" : "drawer";
-
   return (
     <div
       className={cn(
@@ -293,82 +405,56 @@ export function RunChatConversation({
       )}
     >
       {ollamaToggle}
-      <ScrollArea
+      <div
         className={cn(
-          "glass-panel ring-outline-variant/25 rounded-lg ring-1",
+          "glass-panel ring-outline-variant/25 relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg ring-1",
           conversationLayout === "panel" &&
-            "h-[min(32vh,280px)] min-h-[160px] p-3 sm:h-[min(36vh,320px)]",
+            "h-[min(32vh,280px)] min-h-[160px] sm:h-[min(36vh,320px)]",
           conversationLayout === "drawer" &&
-            "min-h-[200px] flex-1 p-4 [&>[data-radix-scroll-area-viewport]]:max-h-[min(52dvh,520px)]",
+            "min-h-[200px] max-h-[min(52dvh,520px)] flex-1",
         )}
       >
-        <div
-          className={cn(
-            conversationLayout === "panel" ? "space-y-3 pr-2" : "space-y-4 pr-3",
-          )}
-        >
-          {messages.map((m) => (
-            <article
-              key={m.id}
-              className="bg-surface-container-low/40 space-y-2 rounded-md p-3"
-            >
-              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                {m.role}
-              </div>
-              <div className="space-y-2">
-                {m.parts.map((part, i) => (
-                  <div key={i}>
-                    {renderPart(part, addToolApprovalResponse)}
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
-          {messages.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              {variant === "panel"
-                ? "Test this flow without leaving the canvas. Same API as the Runner page."
-                : "Send a message to run the agent with the selected flow and catalog tools. Use exact tool names from the catalog (e.g. echo, web_search)."}
-            </p>
-          )}
-        </div>
-      </ScrollArea>
-      {error && (
+        <Conversation className="min-h-0 flex-1">
+          <ConversationContent
+            className={cn(
+              conversationLayout === "panel" ? "gap-4 py-3 pr-2" : "gap-4 py-4 pr-3",
+            )}
+          >
+            {messages.map((m) => (
+              <Message from={m.role} key={m.id}>
+                <MessageContent>
+                  {m.parts.map((part, i) => (
+                    <Fragment key={i}>
+                      {renderPart(part, i, addToolApprovalResponse)}
+                    </Fragment>
+                  ))}
+                </MessageContent>
+              </Message>
+            ))}
+            {messages.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                {variant === "panel"
+                  ? "Test this flow without leaving the canvas. Same API as the Runner page."
+                  : "Send a message to run the agent with the selected flow and catalog tools. Use exact tool names from the catalog (e.g. echo, web_search)."}
+              </p>
+            ) : null}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+      </div>
+      {error ? (
         <p className="text-destructive text-sm" role="alert">
           {error.message}
         </p>
-      )}
-      <form
-        className="flex flex-col gap-2 sm:flex-row"
-        onSubmit={onSubmitMessage}
-      >
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Message the agent…"
-          disabled={busy}
-          aria-label="Chat message"
-          className="flex-1"
+      ) : null}
+      <PromptInputProvider>
+        <ChatPromptForm
+          busy={busy}
+          onSend={handleSend}
+          status={status}
+          stop={stop}
         />
-        <div className="flex gap-2">
-          {busy ? (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => void stop()}
-            >
-              Stop
-            </Button>
-          ) : null}
-          <Button
-            type="submit"
-            variant="synth"
-            disabled={busy || !input.trim()}
-          >
-            Send
-          </Button>
-        </div>
-      </form>
+      </PromptInputProvider>
     </div>
   );
 }
