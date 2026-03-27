@@ -391,8 +391,8 @@ function FlowEditorInner({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-20">
-      <header className="border-outline-variant/15 z-50 flex h-14 w-full shrink-0 items-center justify-between gap-4 border-b bg-surface px-4 sm:h-16 sm:px-6">
-        <div className="flex min-w-0 items-center gap-4 sm:gap-8">
+      <header className="border-outline-variant/15 z-50 flex w-full shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-surface px-3 py-2 sm:h-16 sm:flex-nowrap sm:gap-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-8">
           <div className="flex min-w-0 items-center gap-3">
             <span className="text-foreground shrink-0 text-lg font-black tracking-tighter sm:text-xl">
               GENUI
@@ -405,7 +405,7 @@ function FlowEditorInner({
             </span>
           </div>
           <nav
-            className="flex shrink-0 items-center gap-3 text-sm sm:gap-6"
+            className="hidden shrink-0 items-center gap-3 text-sm sm:flex sm:gap-6"
             aria-label="Flow workspace"
           >
             <span className="border-primary text-primary border-b-2 pb-0.5 font-semibold">
@@ -425,10 +425,10 @@ function FlowEditorInner({
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
+        <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-4">
+          <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
             <input
-              className="border-outline-variant/20 bg-surface-container-lowest focus:border-primary focus:ring-primary w-64 rounded-xl border py-1.5 pr-9 pl-4 text-xs outline-none transition-all focus:ring-1"
+              className="border-outline-variant/20 bg-surface-container-lowest focus:border-primary focus:ring-primary w-full rounded-xl border py-1.5 pr-9 pl-4 text-xs outline-none transition-all focus:ring-1"
               placeholder="Search components…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -438,27 +438,27 @@ function FlowEditorInner({
           </div>
           <button
             type="button"
-            className="text-muted-foreground hover:text-primary transition-colors"
+            className="text-muted-foreground hover:text-primary hidden transition-colors lg:inline-flex"
             aria-label="Notifications"
           >
             <Bell className="size-5" />
           </button>
           <button
             type="button"
-            className="text-muted-foreground hover:text-primary transition-colors"
+            className="text-muted-foreground hover:text-primary hidden transition-colors lg:inline-flex"
             aria-label="Settings"
           >
             <Settings className="size-5" />
           </button>
           <div
-            className="border-outline-variant/30 bg-surface-container-highest size-8 shrink-0 overflow-hidden rounded-full border"
+            className="border-outline-variant/30 bg-surface-container-highest hidden size-8 shrink-0 overflow-hidden rounded-full border lg:block"
             aria-hidden
           />
         </div>
       </header>
 
-      <div className="bg-surface-container-low border-outline-variant/10 flex h-11 shrink-0 items-center justify-between border-b px-4 sm:h-12 sm:px-6">
-        <div className="text-foreground flex items-center gap-3 text-xs sm:gap-4">
+      <div className="bg-surface-container-low border-outline-variant/10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2 sm:h-12 sm:flex-nowrap sm:px-6">
+        <div className="text-foreground flex min-w-0 items-center gap-3 overflow-x-auto text-xs sm:gap-4">
           <Link
             href={`/flows/${encodeURIComponent(flow.id)}/settings`}
             className="text-muted-foreground hover:text-foreground flex items-center gap-2 rounded-md font-medium transition-colors"
@@ -482,7 +482,7 @@ function FlowEditorInner({
           />
         </div>
         <div className="flex items-center gap-2">
-          <div className="md:hidden flex items-center gap-1">
+          <div className="flex items-center gap-1 md:hidden">
             <select
               className="border-outline-variant/20 bg-surface-container-lowest text-foreground max-w-[7rem] rounded border px-1 py-1 text-[9px]"
               value={paletteType}
@@ -591,7 +591,7 @@ function FlowEditorInner({
             )}
           >
             <ReactFlow
-              className="!bg-transparent h-full min-h-[min(320px,50dvh)] w-full flex-1 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane:active]:cursor-grabbing"
+              className="!bg-transparent h-full min-h-[min(320px,50dvh)] w-full flex-1 touch-pan-y [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane:active]:cursor-grabbing"
               nodes={displayNodes}
               edges={edges}
               onNodesChange={onNodesChange}
@@ -609,6 +609,10 @@ function FlowEditorInner({
               defaultEdgeOptions={defaultEdgeOptions}
               connectionLineStyle={{ stroke: "#9ae8ff", strokeWidth: 2.5 }}
               fitView
+              panOnDrag={[1, 2]}
+              zoomOnPinch
+              zoomOnDoubleClick={false}
+              selectionOnDrag={false}
               proOptions={{ hideAttribution: true }}
             >
               <Background
@@ -648,12 +652,12 @@ function FlowEditorInner({
             </ReactFlow>
           </div>
 
-          <div className="pointer-events-none absolute bottom-8 left-8 z-30">
+          <div className="pointer-events-none absolute right-3 bottom-4 left-3 z-30 sm:right-auto sm:bottom-8 sm:left-8">
             <Button
               type="button"
               variant="synth"
               disabled={saving}
-              className="pointer-events-auto rounded-full px-6 py-6 shadow-[0_10px_30px_rgba(0,218,243,0.25)]"
+              className="pointer-events-auto w-full rounded-full px-4 py-5 shadow-[0_10px_30px_rgba(0,218,243,0.25)] sm:w-auto sm:px-6 sm:py-6"
               onClick={() => void persistFromState()}
             >
               {saving ? (
@@ -667,7 +671,7 @@ function FlowEditorInner({
 
           {saveError ? (
             <p
-              className="text-destructive absolute bottom-24 left-8 z-30 max-w-sm text-sm"
+              className="text-destructive absolute right-3 bottom-20 left-3 z-30 max-w-sm text-sm sm:right-auto sm:bottom-24 sm:left-8"
               role="alert"
             >
               {saveError}
@@ -777,12 +781,12 @@ function FlowEditorInner({
       </div>
 
       <nav
-        className="border-outline-variant/15 bg-background/80 fixed bottom-0 z-50 hidden w-full items-center justify-center gap-12 border-t py-3 shadow-[0_-4px_20px_rgba(0,229,255,0.05)] backdrop-blur-xl md:flex"
+        className="border-outline-variant/15 bg-background/80 fixed right-0 bottom-0 left-0 z-50 flex items-center justify-around gap-1 border-t px-2 py-2 shadow-[0_-4px_20px_rgba(0,229,255,0.05)] backdrop-blur-xl md:hidden"
         aria-label="Flow quick actions"
       >
         <Link
           href={runHref}
-          className="text-primary bg-primary/10 flex flex-col items-center gap-1 rounded-xl px-4 py-1 text-[10px] font-bold uppercase transition-all active:scale-90"
+          className="text-primary bg-primary/10 flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold uppercase transition-all active:scale-90"
         >
           <Play className="size-5" aria-hidden />
           Run flow
@@ -790,7 +794,7 @@ function FlowEditorInner({
         <button
           type="button"
           className={cn(
-            "relative flex flex-col items-center gap-1 rounded-xl px-4 py-1 text-[10px] font-bold uppercase transition-all active:scale-90",
+            "relative flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold uppercase transition-all active:scale-90",
             validationPanelOpen
               ? "text-destructive bg-destructive/10"
               : "text-muted-foreground hover:bg-muted hover:text-primary",
@@ -808,7 +812,7 @@ function FlowEditorInner({
         </button>
         <button
           type="button"
-          className="text-muted-foreground hover:bg-muted hover:text-primary flex flex-col items-center gap-1 rounded-xl px-4 py-1 text-[10px] font-bold uppercase transition-all active:scale-90"
+          className="text-muted-foreground hover:bg-muted hover:text-primary flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold uppercase transition-all active:scale-90"
           onClick={() => setTestPanelOpen((o) => !o)}
           aria-expanded={testPanelOpen}
         >
@@ -817,7 +821,7 @@ function FlowEditorInner({
         </button>
         <button
           type="button"
-          className="text-muted-foreground hover:bg-muted hover:text-primary flex flex-col items-center gap-1 rounded-xl px-4 py-1 text-[10px] uppercase transition-all active:scale-90 disabled:opacity-50"
+          className="text-muted-foreground hover:bg-muted hover:text-primary flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] uppercase transition-all active:scale-90 disabled:opacity-50"
           disabled={saving}
           onClick={() => void persistFromState()}
         >
@@ -826,14 +830,14 @@ function FlowEditorInner({
         </button>
         <Link
           href="/mcp"
-          className="text-muted-foreground hover:bg-muted hover:text-primary flex flex-col items-center gap-1 rounded-xl px-4 py-1 text-[10px] uppercase transition-all"
+          className="text-muted-foreground hover:bg-muted hover:text-primary hidden flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] uppercase transition-all sm:flex"
         >
           <Terminal className="size-5" aria-hidden />
           Terminal
         </Link>
         <Link
           href="/analytics"
-          className="text-muted-foreground hover:bg-muted hover:text-primary flex flex-col items-center gap-1 rounded-xl px-4 py-1 text-[10px] uppercase transition-all"
+          className="text-muted-foreground hover:bg-muted hover:text-primary hidden flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] uppercase transition-all sm:flex"
         >
           <BarChart3 className="size-5" aria-hidden />
           Metrics
