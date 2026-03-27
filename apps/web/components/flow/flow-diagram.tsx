@@ -40,8 +40,10 @@ function FlowDiagramInner({ flow }: { flow: FlowDocument }) {
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable={false}
-      panOnDrag
-      zoomOnScroll
+      panOnDrag={[1, 2]}
+      zoomOnScroll={false}
+      zoomOnPinch
+      zoomOnDoubleClick={false}
       proOptions={{ hideAttribution: true }}
     >
       <Background />
