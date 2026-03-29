@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FlowQuickSwitch } from "@/components/studio/flow-quick-switch";
 import { useStudioNav } from "@/components/studio/studio-nav-context";
@@ -86,7 +85,7 @@ export function FlowEditorTopHud({
   return (
     <header className="border-outline-variant/15 bg-surface/95 supports-[backdrop-filter]:bg-surface/80 z-50 flex w-full shrink-0 flex-col gap-2 border-b px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur-md sm:px-4 sm:pb-2.5">
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
-        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+        <div className="order-1 flex min-w-0 flex-1 items-center gap-1.5 sm:flex-initial sm:gap-2">
           <SimpleTooltip label="Open studio navigation" side="bottom">
             <Button
               type="button"
@@ -106,11 +105,12 @@ export function FlowEditorTopHud({
             mode="editor"
             flows={flowOptions}
             currentFlowId={flowId}
-            className="min-w-0 max-w-[40vw] shrink sm:max-w-[12rem]"
+            className="min-w-0 max-w-[52vw] shrink sm:max-w-[12rem]"
           />
         </div>
 
-        <div className="border-outline-variant/25 bg-surface-container-highest/60 flex min-w-0 flex-1 items-center justify-center gap-0.5 rounded-full border px-1 py-0.5 sm:gap-1 sm:px-2">
+        <div className="order-3 w-full sm:order-2 sm:w-auto sm:flex-1">
+          <div className="border-outline-variant/25 bg-surface-container-highest/60 flex min-w-0 items-center justify-center gap-0.5 rounded-full border px-1 py-0.5 sm:gap-1 sm:px-2">
           <SimpleTooltip
             label="Return to canvas (close validation and test panels)"
             side="bottom"
@@ -173,60 +173,61 @@ export function FlowEditorTopHud({
               </span>
             </button>
           </SimpleTooltip>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground h-8 min-h-10 min-w-10 rounded-full px-2 sm:min-h-8 sm:min-w-0"
-                  aria-label="More flow actions"
-                  title="More flow actions"
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground h-8 min-h-10 min-w-10 rounded-full px-2 sm:min-h-8 sm:min-w-0"
+                    aria-label="More flow actions"
+                    title="More flow actions"
+                  >
+                    <MoreHorizontal className="size-4" aria-hidden />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="min-w-48">
+                <DropdownMenuItem onClick={() => router.push("/flows")}>
+                  Flow library
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/dashboard")}>
+                  Studio dashboard
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(runHref)}>
+                  Flow workspace
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onOpenFlowSettings()}>
+                  Flow settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onOpenCanvasInteraction()}>
+                  <MousePointer2 className="size-4" aria-hidden />
+                  Canvas interaction…
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    void onRefresh?.();
+                  }}
                 >
-                  <MoreHorizontal className="size-4" aria-hidden />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end" className="min-w-48">
-              <DropdownMenuItem onClick={() => router.push("/flows")}>
-                Flow library
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/dashboard")}>
-                Studio dashboard
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(runHref)}>
-                Flow workspace
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOpenFlowSettings()}>
-                Flow settings
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOpenCanvasInteraction()}>
-                <MousePointer2 className="size-4" aria-hidden />
-                Canvas interaction…
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  void onRefresh?.();
-                }}
-              >
-                <RefreshCw className="size-4" aria-hidden />
-                Refresh from server
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={saving}
-                onClick={() => {
-                  onSave();
-                }}
-              >
-                Save layout to studio
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <RefreshCw className="size-4" aria-hidden />
+                  Refresh from server
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={saving}
+                  onClick={() => {
+                    onSave();
+                  }}
+                >
+                  Save layout to studio
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:max-w-md sm:flex-initial lg:max-w-sm">
+        <div className="order-2 ml-auto flex min-w-0 items-center justify-end gap-2 sm:order-3 sm:ml-0 sm:max-w-md sm:flex-initial lg:max-w-sm">
           <div className="relative hidden min-w-0 flex-1 sm:block">
             <input
               className="border-outline-variant/20 bg-surface-container-lowest focus:border-primary focus:ring-primary w-full rounded-xl border py-1.5 pr-9 pl-3 text-xs outline-none transition-all focus:ring-1"
