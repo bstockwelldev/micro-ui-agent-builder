@@ -25,7 +25,7 @@ import { mergeAgentProfileIntoSystemPrompt } from "@/lib/server/agent-system-app
 import { estimateUsdFromUsage } from "@/lib/server/estimate-llm-spend";
 import { appendRunAnalyticsRecord } from "@/lib/server/run-analytics-store";
 import { RUN_ANALYTICS_V1 } from "@/lib/server/run-analytics-types";
-import { requireLangfuseEnvIfEnabled } from "@/lib/server/langfuse-env";
+import { requireAiSdkExecutorForRoute } from "@/lib/server/runtime-config";
 import { wrapToolsWithTelemetry } from "@/lib/server/telemetry/tool-wrap";
 import { beginRouteTrace, failTrace } from "@/lib/server/telemetry/with-trace";
 import {
@@ -65,10 +65,10 @@ export async function POST(req: Request) {
   const { telemetry, traceId, runId } = trace;
 
   try {
-    requireLangfuseEnvIfEnabled();
+    requireAiSdkExecutorForRoute();
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Invalid Langfuse configuration.";
+      error instanceof Error ? error.message : "Invalid server runtime configuration.";
     return NextResponse.json({ error: message }, { status: 503 });
   }
 

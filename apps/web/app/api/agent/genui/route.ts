@@ -16,7 +16,7 @@ import {
   type ResolvedLanguageModel,
 } from "@/lib/server/language-model";
 import { mergeAgentProfileIntoSystemPrompt } from "@/lib/server/agent-system-appendix";
-import { requireLangfuseEnvIfEnabled } from "@/lib/server/langfuse-env";
+import { requireAiSdkExecutorForRoute } from "@/lib/server/runtime-config";
 import { beginRouteTrace, failTrace } from "@/lib/server/telemetry/with-trace";
 import {
   getAgentById,
@@ -31,10 +31,10 @@ export async function POST(req: Request) {
   const { telemetry, traceId, runId } = trace;
 
   try {
-    requireLangfuseEnvIfEnabled();
+    requireAiSdkExecutorForRoute();
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Invalid Langfuse configuration.";
+      error instanceof Error ? error.message : "Invalid server runtime configuration.";
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
