@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createNoopTelemetry } from "../../../apps/web/lib/server/telemetry/noop";
+import { getServerTelemetry } from "../../../apps/web/lib/server/telemetry/provider";
 import { wrapToolsWithTelemetry } from "../../../apps/web/lib/server/telemetry/tool-wrap";
 import { beginRouteTrace, failTrace } from "../../../apps/web/lib/server/telemetry/with-trace";
 import type { ServerTelemetry } from "../../../apps/web/lib/server/telemetry/types";
@@ -105,5 +106,13 @@ describe("trace helpers", () => {
     noop.captureError("t", "err");
     noop.finishTrace("t", "ok");
     expect(true).toBe(true);
+  });
+
+  it("provider returns noop telemetry when tracing is disabled", () => {
+    const previous = process.env.LANGFUSE_TRACING_ENABLED;
+    process.env.LANGFUSE_TRACING_ENABLED = "false";
+    const telemetry = getServerTelemetry();
+    expect(typeof telemetry.startTrace).toBe("function");
+    process.env.LANGFUSE_TRACING_ENABLED = previous;
   });
 });
