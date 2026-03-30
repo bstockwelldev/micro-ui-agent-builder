@@ -94,6 +94,45 @@
 
 - Add server-only telemetry adapter and emit traces/spans around route executions and tool/model calls.
 
+#### Langfuse event contract
+
+This contract defines the minimum telemetry shape required to correlate a single Run/GenUI request across API logs, model events, and tool execution.
+
+**Trace lifecycle (`beginRouteTrace` → `finishTrace`)**
+
+1. **Trace start** (`beginRouteTrace`) initializes `traceId` (request header `x-trace-id` or generated UUID) and `runId`, then calls `telemetry.startTrace(...)` with `kind`, `flowId`, `agentId`, and `runId`.
+   - Source: `apps/web/lib/server/telemetry/with-trace.ts`
+2. **Route/model/tool execution** emits model and tool events from the AI SDK executor.
+   - Source: `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`
+3. **Error path** (`failTrace` or explicit catch blocks) records `trace_error` via `captureError(...)` then closes the trace with `finishTrace(..., "error")`.
+   - Sources: `apps/web/lib/server/telemetry/with-trace.ts`, `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`
+4. **Success path** closes trace with `finishTrace(..., "ok")` and duration metadata.
+   - Source: `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`
+
+**Emitted event names and producers**
+
+- `model_preflight` — emitted by `recordModelEvent({ phase: "preflight" })` in `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`; event naming materialized in `apps/web/lib/server/telemetry/langfuse.ts`.
+- `model_selection` — emitted by `recordModelEvent({ phase: "model_selection" })` in `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`; event naming materialized in `apps/web/lib/server/telemetry/langfuse.ts`.
+- `model_generation_start` — emitted by `recordModelEvent({ phase: "generation_start" })` in `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`; event naming materialized in `apps/web/lib/server/telemetry/langfuse.ts`.
+- `model_generation_finish` — emitted by `recordModelEvent({ phase: "generation_finish" })` in `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`; event naming materialized in `apps/web/lib/server/telemetry/langfuse.ts`.
+- `tool_*` (`tool_tool_call_start`, `tool_tool_call_finish`, `tool_tool_call_error`) — emitted by tool wrappers in `apps/web/lib/server/telemetry/tool-wrap.ts`; event naming materialized in `apps/web/lib/server/telemetry/langfuse.ts`; wrapper integration occurs in `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`.
+- `trace_error` — emitted by `captureError(...)` in `apps/web/lib/server/telemetry/langfuse.ts`; invoked from `failTrace(...)` in `apps/web/lib/server/telemetry/with-trace.ts` and explicit executor catch blocks in `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`.
+
+**Minimum required debugging correlation fields**
+
+Every trace/event payload must include enough metadata to join telemetry with request and analytics logs.
+
+- `traceId` (required): primary correlation key across API response metadata (`x-trace-id` / response metadata) and telemetry.
+- `runId` (required): per-request execution identifier generated at route start.
+- `flowId` (required, nullable): flow context for route-level grouping.
+- `agentId` (required, nullable): agent context for route-level grouping.
+- Provider/model labels (required on model events):
+  - `providerLabel` (selected execution provider)
+  - `modelRef` (requested/resolved model reference)
+  - `fallbackProviderLabel` (when fallback path is available/used)
+
+Implementation note: `startTrace` currently seeds `flowId` and `agentId` as `null` in `beginRouteTrace`; preserving these keys as explicit nullable fields is part of the contract.
+
 ### WS-04 — Progressive rollout + fallback controls
 
 - Add feature flags for executor and telemetry selection with safe default behavior.
