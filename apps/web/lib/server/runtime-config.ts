@@ -15,6 +15,18 @@ export type ServerRuntimeConfig = {
   };
 };
 
+export type RuntimeConfigHealthStatus = {
+  ok: boolean;
+  config: {
+    orchestrationBackend: OrchestrationBackend | "invalid";
+    telemetryProvider: TelemetryProvider | "invalid";
+    legacyLangfuseTracingEnabled: boolean;
+    langgraphConfigured: boolean;
+    langfuseConfigured: boolean;
+  };
+  error?: string;
+};
+
 function isTruthy(value: string | undefined): boolean {
   const v = value?.trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes";
@@ -105,6 +117,50 @@ export function getServerRuntimeConfig(): ServerRuntimeConfig {
   return config;
 }
 
+function parseForHealth<T extends string>(
+  parser: (raw: string | undefined) => T,
+  raw: string | undefined,
+): T | "invalid" {
+  try {
+    return parser(raw);
+  } catch {
+    return "invalid";
+  }
+}
+
+export function getRuntimeConfigHealthStatus(): RuntimeConfigHealthStatus {
+  const legacyLangfuseTracingEnabled = isTruthy(process.env.LANGFUSE_TRACING_ENABLED);
+  const config = {
+    orchestrationBackend: parseForHealth(
+      parseOrchestrationBackend,
+      process.env.ORCHESTRATION_BACKEND,
+    ),
+    telemetryProvider: parseForHealth(
+      parseTelemetryProvider,
+      process.env.TELEMETRY_PROVIDER,
+    ),
+    legacyLangfuseTracingEnabled,
+    langgraphConfigured: Boolean(
+      normalizeOptional(process.env.LANGGRAPH_API_URL) &&
+        normalizeOptional(process.env.LANGGRAPH_API_KEY),
+    ),
+    langfuseConfigured: Boolean(
+      normalizeOptional(process.env.LANGFUSE_PUBLIC_KEY) &&
+        normalizeOptional(process.env.LANGFUSE_SECRET_KEY),
+    ),
+  };
+
+  try {
+    getServerRuntimeConfig();
+    return { ok: true, config };
+  } catch (error) {
+    return {
+      ok: false,
+      config,
+      error: error instanceof Error ? error.message : "Invalid server runtime configuration.",
+    };
+  }
+}
 
 /**
  * Guard current runtime routes that still execute through AI SDK code paths.

@@ -153,10 +153,11 @@ Production-safe defaults are now **`ORCHESTRATION_BACKEND=ai_sdk`** and **`TELEM
 ### Rollout sequence
 
 1. Deploy with defaults (no new flags) and confirm `/api/agent/run` + `/api/agent/genui` are healthy.
-2. If enabling Langfuse, set `TELEMETRY_PROVIDER=langfuse` plus `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`.
-3. Restart deployment and verify traces are arriving.
-4. Keep `ORCHESTRATION_BACKEND=ai_sdk` until LangGraph executor code is deployed.
-5. Only then set `ORCHESTRATION_BACKEND=langgraph` with `LANGGRAPH_API_URL` and `LANGGRAPH_API_KEY`.
+2. Verify `GET /api/runtime/health` returns `ok: true` before enabling optional providers.
+3. If enabling Langfuse, set `TELEMETRY_PROVIDER=langfuse` plus `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`.
+4. Restart deployment and verify traces are arriving.
+5. Keep `ORCHESTRATION_BACKEND=ai_sdk` until LangGraph executor code is deployed.
+6. Only then set `ORCHESTRATION_BACKEND=langgraph` with `LANGGRAPH_API_URL` and `LANGGRAPH_API_KEY`.
 
 ### Rollback sequence
 
@@ -181,6 +182,7 @@ Production-safe defaults are now **`ORCHESTRATION_BACKEND=ai_sdk`** and **`TELEM
 | POST | `/api/agent/genui` | Structured UI tree; body `{ instruction, flowId? }`; uses `generateObject` + shared schema |
 | POST | `/api/agent/approve` | Stub: clears `pausedRuns` session |
 | POST | `/api/mcp/proxy` | Forwards JSON to registered **http** MCP URLs; body `{ mcpServerId, request }` |
+| GET | `/api/runtime/health` | Sanitized runtime config health (`ok` + backend/provider readiness) for rollout verification |
 
 **Generative UI — two paths (both valid):**
 
