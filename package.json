@@ -8,7 +8,7 @@
     "build": "pnpm --filter shared build && pnpm --filter web build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm --filter @repo/shared build && pnpm -r typecheck",
-    "test": "pnpm --filter shared test",
+    "test": "pnpm --filter shared test && pnpm --filter web test",
     "stitch:download-screen": "node scripts/stitch-download-screen.mjs"
   },
   "engines": {
