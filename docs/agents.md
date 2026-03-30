@@ -126,6 +126,14 @@ Canonical list: [apps/web/.env.example](../apps/web/.env.example).
 
 RLS is expected to block `anon` / `authenticated` on `agent_builder` tables; the app uses the service role for server-side studio persistence.
 
+### Langfuse tracing (optional, server-only)
+
+| Variable | Notes |
+|----------|--------|
+| `LANGFUSE_PUBLIC_KEY` | Langfuse project public key for trace ingestion |
+| `LANGFUSE_SECRET_KEY` | **Server-only** secret for Langfuse SDK authentication |
+| `LANGFUSE_BASEURL` | Optional API base URL (defaults to `https://cloud.langfuse.com`) |
+
 ## API routes
 
 | Method | Path | Purpose |
