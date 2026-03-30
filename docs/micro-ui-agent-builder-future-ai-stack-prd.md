@@ -261,3 +261,94 @@ flowchart TD
 3. Should existing JSONL analytics remain long-term, or be treated as fallback only once Langfuse is stable?
 4. Do we require end-user visible trace IDs in the Studio UI, or only server logs/API metadata?
 5. Is there a required compatibility window for old flow definitions if orchestration metadata is added?
+
+## Appendix A) `GET /api/runtime/health` response payloads
+
+The endpoint returns HTTP `200` when `ok: true` and HTTP `503` when `ok: false`.
+
+### A.1 Valid defaults (no orchestration/telemetry env vars set)
+
+```json
+{
+  "ok": true,
+  "config": {
+    "orchestrationBackend": "ai_sdk",
+    "telemetryProvider": "noop",
+    "legacyLangfuseTracingEnabled": false,
+    "langgraphConfigured": false,
+    "langfuseConfigured": false
+  }
+}
+```
+
+### A.2 Failure: invalid `ORCHESTRATION_BACKEND`
+
+```json
+{
+  "ok": false,
+  "config": {
+    "orchestrationBackend": "invalid",
+    "telemetryProvider": "noop",
+    "legacyLangfuseTracingEnabled": false,
+    "langgraphConfigured": false,
+    "langfuseConfigured": false
+  },
+  "error": "Invalid ORCHESTRATION_BACKEND=\"invalid\". Use \"ai_sdk\" (default) or \"langgraph\"."
+}
+```
+
+Remediation: set `ORCHESTRATION_BACKEND=ai_sdk` (default) or `ORCHESTRATION_BACKEND=langgraph`.
+
+### A.3 Failure: invalid `TELEMETRY_PROVIDER`
+
+```json
+{
+  "ok": false,
+  "config": {
+    "orchestrationBackend": "ai_sdk",
+    "telemetryProvider": "invalid",
+    "legacyLangfuseTracingEnabled": false,
+    "langgraphConfigured": false,
+    "langfuseConfigured": false
+  },
+  "error": "Invalid TELEMETRY_PROVIDER=\"invalid\". Use \"noop\" (default) or \"langfuse\"."
+}
+```
+
+Remediation: set `TELEMETRY_PROVIDER=noop` (default) or `TELEMETRY_PROVIDER=langfuse`.
+
+### A.4 Failure: missing Langfuse keys when enabled
+
+```json
+{
+  "ok": false,
+  "config": {
+    "orchestrationBackend": "ai_sdk",
+    "telemetryProvider": "langfuse",
+    "legacyLangfuseTracingEnabled": false,
+    "langgraphConfigured": false,
+    "langfuseConfigured": false
+  },
+  "error": "TELEMETRY_PROVIDER=langfuse requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY. Set both values or switch TELEMETRY_PROVIDER=noop."
+}
+```
+
+Remediation: set both `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`, or switch to `TELEMETRY_PROVIDER=noop`.
+
+### A.5 Failure: `LANGFUSE_TRACING_ENABLED=true` + `TELEMETRY_PROVIDER=noop`
+
+```json
+{
+  "ok": false,
+  "config": {
+    "orchestrationBackend": "ai_sdk",
+    "telemetryProvider": "noop",
+    "legacyLangfuseTracingEnabled": true,
+    "langgraphConfigured": false,
+    "langfuseConfigured": false
+  },
+  "error": "Conflicting telemetry flags: LANGFUSE_TRACING_ENABLED=true but TELEMETRY_PROVIDER=noop. Set TELEMETRY_PROVIDER=langfuse or disable LANGFUSE_TRACING_ENABLED."
+}
+```
+
+Remediation: set `TELEMETRY_PROVIDER=langfuse` or disable `LANGFUSE_TRACING_ENABLED`.
