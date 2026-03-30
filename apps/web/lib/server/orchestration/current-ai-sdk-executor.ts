@@ -33,6 +33,7 @@ import {
 } from "@/lib/server/language-model";
 import { appendRunAnalyticsRecord } from "@/lib/server/run-analytics-store";
 import { RUN_ANALYTICS_V1 } from "@/lib/server/run-analytics-types";
+import { requireAiSdkExecutorForRoute } from "@/lib/server/runtime-config";
 import { wrapToolsWithTelemetry } from "@/lib/server/telemetry/tool-wrap";
 import { beginRouteTrace, failTrace } from "@/lib/server/telemetry/with-trace";
 import {
@@ -77,6 +78,14 @@ export class CurrentAiSdkOrchestrationExecutor
   async executeRun(req: Request): Promise<Response> {
     const trace = beginRouteTrace(req, "agent_run");
     const { telemetry, traceId, runId } = trace;
+
+    try {
+      requireAiSdkExecutorForRoute();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Invalid server runtime configuration.";
+      return NextResponse.json({ error: message }, { status: 503 });
+    }
 
     try {
       requireLangfuseEnvIfEnabled();
@@ -286,6 +295,14 @@ export class CurrentAiSdkOrchestrationExecutor
   async executeGenUi(req: Request): Promise<Response> {
     const trace = beginRouteTrace(req, "agent_genui");
     const { telemetry, traceId, runId } = trace;
+
+    try {
+      requireAiSdkExecutorForRoute();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Invalid server runtime configuration.";
+      return NextResponse.json({ error: message }, { status: 503 });
+    }
 
     try {
       requireLangfuseEnvIfEnabled();

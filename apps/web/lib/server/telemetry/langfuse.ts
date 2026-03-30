@@ -1,6 +1,6 @@
 import { Langfuse, type LangfuseTraceClient } from "langfuse";
 
-import { requireLangfuseEnvIfEnabled } from "../langfuse-env";
+import type { ServerRuntimeConfig } from "../runtime-config";
 
 import type {
   ServerTelemetry,
@@ -100,16 +100,23 @@ class LangfuseTelemetry implements ServerTelemetry {
 
 let singleton: ServerTelemetry | null = null;
 
-export function getLangfuseTelemetry(): ServerTelemetry {
+export function getLangfuseTelemetry(config: ServerRuntimeConfig): ServerTelemetry {
   if (singleton) return singleton;
-  const env = requireLangfuseEnvIfEnabled();
-  if (!env) {
-    throw new Error("Langfuse telemetry requested while tracing is disabled.");
+
+  if (config.telemetryProvider !== "langfuse") {
+    throw new Error("Langfuse telemetry requested while TELEMETRY_PROVIDER is not langfuse.");
   }
+
+  if (!config.langfuse.publicKey || !config.langfuse.secretKey) {
+    throw new Error(
+      "TELEMETRY_PROVIDER=langfuse requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY.",
+    );
+  }
+
   const client = new Langfuse({
-    publicKey: env.publicKey,
-    secretKey: env.secretKey,
-    baseUrl: env.baseUrl,
+    publicKey: config.langfuse.publicKey,
+    secretKey: config.langfuse.secretKey,
+    baseUrl: config.langfuse.baseUrl,
   });
   singleton = new LangfuseTelemetry(client);
   return singleton;
