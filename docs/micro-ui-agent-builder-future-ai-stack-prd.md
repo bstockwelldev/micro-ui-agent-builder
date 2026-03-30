@@ -105,6 +105,11 @@
 - **WS-04 — Progressive rollout + fallback controls: In progress**
 - **WS-05 — QA, reliability, and deployment hardening: In progress**
 
+## 3.1) Next required implementation set
+
+- For the concrete next execution plan to complete LangGraph + Langfuse design rollout, see [docs/langgraph-langfuse-next-changes.md](./langgraph-langfuse-next-changes.md).
+- This companion plan is intentionally scoped to remaining blockers and ordered execution dependencies.
+
 ## 4) Change-set plan with workstreams
 
 ### WS-01 — Orchestration abstraction and parity harness
