@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  expectJsonErrorEnvelope,
+  expectTraceMetadataIsAdditive,
+  jsonResponse,
+} from "@/app/api/agent/test-utils/response-assertions";
 
 const executeRun = vi.fn<(req: Request) => Promise<Response>>();
 
@@ -11,13 +16,6 @@ vi.mock("@/lib/server/orchestration/executor", () => ({
 
 import { POST } from "./route";
 
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
-
 afterEach(() => {
   executeRun.mockReset();
   delete process.env.AGENT_ORCHESTRATION_EXECUTOR;
@@ -27,7 +25,7 @@ describe("POST /api/agent/run route", () => {
   it("passes through success envelope with default backend", async () => {
     process.env.AGENT_ORCHESTRATION_EXECUTOR = "current-ai-sdk";
     executeRun.mockResolvedValue(
-      json(200, {
+      jsonResponse(200, {
         runId: "run-1",
         messages: [],
         trace: { spanId: "abc123" },
@@ -50,17 +48,18 @@ describe("POST /api/agent/run route", () => {
 
   it("passes through failure envelope with next backend", async () => {
     process.env.AGENT_ORCHESTRATION_EXECUTOR = "next-ai-sdk";
-    executeRun.mockResolvedValue(json(503, { error: "No LLM API key configured." }));
+    executeRun.mockResolvedValue(
+      jsonResponse(503, { error: "No LLM API key configured." }),
+    );
 
     const response = await POST(new Request("http://localhost/api/agent/run"));
 
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ error: "No LLM API key configured." });
+    await expectJsonErrorEnvelope(response, 503, "No LLM API key configured.");
   });
 
   it("preserves backward-compatible error envelope when trace metadata is additive", async () => {
     executeRun.mockResolvedValue(
-      json(400, {
+      jsonResponse(400, {
         error: "Expected messages array",
         code: "BAD_INPUT",
         trace: { traceId: "tr_123", backend: "next-ai-sdk" },
@@ -77,6 +76,6 @@ describe("POST /api/agent/run route", () => {
     expect(response.status).toBe(400);
     expect(body.error).toBe("Expected messages array");
     expect(body.code).toBe("BAD_INPUT");
-    expect(body.trace?.traceId).toBe("tr_123");
+    expectTraceMetadataIsAdditive(body, "tr_123");
   });
 });

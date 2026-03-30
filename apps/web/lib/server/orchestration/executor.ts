@@ -6,6 +6,10 @@ import type { OrchestrationRouteExecutor } from "@/lib/server/orchestration/type
 type ExecutorFlag = "current-ai-sdk" | "next-ai-sdk";
 
 const currentAiSdkExecutor = new CurrentAiSdkOrchestrationExecutor();
+const executorRegistry: Record<ExecutorFlag, OrchestrationRouteExecutor> = {
+  "current-ai-sdk": currentAiSdkExecutor,
+  "next-ai-sdk": currentAiSdkExecutor,
+};
 
 function resolveExecutorFlag(): ExecutorFlag {
   const raw = process.env.AGENT_ORCHESTRATION_EXECUTOR?.trim();
@@ -16,11 +20,5 @@ function resolveExecutorFlag(): ExecutorFlag {
 
 export function resolveOrchestrationExecutor(): OrchestrationRouteExecutor {
   const flag = resolveExecutorFlag();
-
-  switch (flag) {
-    case "next-ai-sdk":
-    case "current-ai-sdk":
-    default:
-      return currentAiSdkExecutor;
-  }
+  return executorRegistry[flag];
 }
