@@ -5,6 +5,7 @@ import type {
   TelemetryToolEvent,
   TelemetryTraceContext,
 } from "./types";
+import { normalizeTelemetryMetadata } from "./serialize";
 
 export function createNoopTelemetry(): ServerTelemetry {
   return {
@@ -35,21 +36,38 @@ export function createNoopTelemetry(): ServerTelemetry {
 export function createConsoleTelemetry(): ServerTelemetry {
   return {
     startTrace: (context) => {
-      console.log(JSON.stringify({ event: "trace_start", ...context }));
+      console.log(
+        JSON.stringify({
+          event: "trace_start",
+          ...normalizeTelemetryMetadata(context),
+        }),
+      );
     },
     recordModelEvent: (traceId, event) => {
-      console.log(JSON.stringify({ event: "trace_model", traceId, ...event }));
+      console.log(
+        JSON.stringify({
+          event: "trace_model",
+          ...normalizeTelemetryMetadata({ traceId, ...event }),
+        }),
+      );
     },
     recordToolEvent: (traceId, event) => {
-      console.log(JSON.stringify({ event: "trace_tool", traceId, ...event }));
+      console.log(
+        JSON.stringify({
+          event: "trace_tool",
+          ...normalizeTelemetryMetadata({ traceId, ...event }),
+        }),
+      );
     },
     captureError: (traceId, error, metadata) => {
       console.error(
         JSON.stringify({
           event: "trace_error",
-          traceId,
-          error: error instanceof Error ? error.message : String(error),
-          metadata: metadata ?? null,
+          ...normalizeTelemetryMetadata({
+            traceId,
+            error: error instanceof Error ? error.message : String(error),
+            metadata: metadata ?? null,
+          }),
         }),
       );
     },
@@ -57,9 +75,11 @@ export function createConsoleTelemetry(): ServerTelemetry {
       console.log(
         JSON.stringify({
           event: "trace_finish",
-          traceId,
-          status,
-          metadata: metadata ?? null,
+          ...normalizeTelemetryMetadata({
+            traceId,
+            status,
+            metadata: metadata ?? null,
+          }),
         }),
       );
     },

@@ -9,6 +9,7 @@ import type {
   TelemetryToolEvent,
   TelemetryTraceContext,
 } from "./types";
+import { normalizeTelemetryMetadata } from "./serialize";
 
 type TraceRegistry = Map<string, LangfuseTraceClient>;
 
@@ -25,11 +26,11 @@ class LangfuseTelemetry implements ServerTelemetry {
       id: context.traceId,
       name: context.kind,
       sessionId: context.runId ?? undefined,
-      metadata: {
+      metadata: normalizeTelemetryMetadata({
         flowId: context.flowId,
         agentId: context.agentId,
         runId: context.runId ?? null,
-      },
+      }),
     });
     this.traces.set(context.traceId, trace);
   }
@@ -39,14 +40,14 @@ class LangfuseTelemetry implements ServerTelemetry {
     if (!trace) return;
     trace.event({
       name: `model_${event.phase}`,
-      metadata: {
+      metadata: normalizeTelemetryMetadata({
         providerLabel: event.providerLabel ?? null,
         modelRef: event.modelRef ?? null,
         fallbackProviderLabel: event.fallbackProviderLabel ?? null,
         finishReason: event.finishReason ?? null,
         usage: event.usage ?? null,
         ...event.metadata,
-      },
+      }),
     });
   }
 
@@ -55,10 +56,10 @@ class LangfuseTelemetry implements ServerTelemetry {
     if (!trace) return;
     trace.event({
       name: `tool_${event.phase}`,
-      metadata: {
+      metadata: normalizeTelemetryMetadata({
         toolName: event.toolName,
         ...(event.metadata ?? {}),
-      },
+      }),
     });
   }
 
@@ -72,10 +73,10 @@ class LangfuseTelemetry implements ServerTelemetry {
     trace.event({
       name: "trace_error",
       level: "ERROR",
-      metadata: {
+      metadata: normalizeTelemetryMetadata({
         error: error instanceof Error ? error.message : String(error),
         ...(metadata ?? {}),
-      },
+      }),
     });
   }
 
@@ -87,10 +88,10 @@ class LangfuseTelemetry implements ServerTelemetry {
     const trace = this.traces.get(traceId);
     if (!trace) return;
     trace.update({
-      output: {
+      output: normalizeTelemetryMetadata({
         status,
         ...(metadata ?? {}),
-      },
+      }),
     });
     this.traces.delete(traceId);
     void this.client.flushAsync();

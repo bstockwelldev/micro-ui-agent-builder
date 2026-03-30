@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createNoopTelemetry } from "../../../apps/web/lib/server/telemetry/noop";
 import { getServerTelemetry } from "../../../apps/web/lib/server/telemetry/provider";
+import { normalizeTelemetryMetadata } from "../../../apps/web/lib/server/telemetry/serialize";
 import { wrapToolsWithTelemetry } from "../../../apps/web/lib/server/telemetry/tool-wrap";
 import { beginRouteTrace, failTrace } from "../../../apps/web/lib/server/telemetry/with-trace";
 import type { ServerTelemetry } from "../../../apps/web/lib/server/telemetry/types";
@@ -114,5 +115,22 @@ describe("trace helpers", () => {
     const telemetry = getServerTelemetry();
     expect(typeof telemetry.startTrace).toBe("function");
     process.env.LANGFUSE_TRACING_ENABLED = previous;
+  });
+});
+
+describe("metadata serializer", () => {
+  it("normalizes unsupported/nullable values", () => {
+    const normalized = normalizeTelemetryMetadata({
+      nil: undefined,
+      big: BigInt(9),
+      fn: () => "x",
+      sym: Symbol("s"),
+      arr: [1, undefined, new Error("boom")],
+    });
+    expect(normalized.nil).toBeNull();
+    expect(normalized.big).toBe("9");
+    expect(normalized.fn).toBe("[function]");
+    expect(String(normalized.sym)).toContain("Symbol(s)");
+    expect(normalized.arr).toEqual([1, null, { name: "Error", message: "boom" }]);
   });
 });
