@@ -1,5 +1,4 @@
 import { generateObject } from "ai";
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { genuiSurfaceSchema } from "@repo/shared";
@@ -18,7 +17,7 @@ import {
 } from "@/lib/server/language-model";
 import { mergeAgentProfileIntoSystemPrompt } from "@/lib/server/agent-system-appendix";
 import { requireLangfuseEnvIfEnabled } from "@/lib/server/langfuse-env";
-import { getServerTelemetry } from "@/lib/server/telemetry/noop";
+import { beginRouteTrace, failTrace } from "@/lib/server/telemetry/with-trace";
 import {
   getAgentById,
   getFlowById,
@@ -28,16 +27,8 @@ import {
 const genuiSystemExtra = `You also emit a small JSON UI tree (GenUI) that matches the schema: a single root node with type Stack, Text, Button, Card, or FormField. Use Stack to group children. Keep the tree shallow (2–4 levels) for demos.`;
 
 export async function POST(req: Request) {
-  const traceId = req.headers.get("x-trace-id")?.trim() || randomUUID();
-  const runId = randomUUID();
-  const telemetry = getServerTelemetry();
-  telemetry.startTrace({
-    traceId,
-    kind: "agent_genui",
-    flowId: null,
-    agentId: null,
-    runId,
-  });
+  const trace = beginRouteTrace(req, "agent_genui");
+  const { telemetry, traceId, runId } = trace;
 
   try {
     requireLangfuseEnvIfEnabled();
@@ -49,28 +40,27 @@ export async function POST(req: Request) {
 
   const envMissing = missingProviderMessage();
   if (envMissing) {
-    telemetry.captureError(traceId, envMissing, { stage: "provider_precheck" });
-    telemetry.finishTrace(traceId, "error", { stage: "provider_precheck" });
-    return NextResponse.json({ error: envMissing }, { status: 503 });
+    const failed = failTrace(trace, "provider_precheck", envMissing);
+    return NextResponse.json({ error: failed.error }, { status: 503 });
   }
 
   let body: { flowId?: string; instruction?: string; agentId?: string };
   try {
     body = await req.json();
   } catch {
-    telemetry.captureError(traceId, "Invalid JSON body", { stage: "request_parse" });
-    telemetry.finishTrace(traceId, "error", { stage: "request_parse" });
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const failed = failTrace(trace, "request_parse", "Invalid JSON body");
+    return NextResponse.json({ error: failed.error }, { status: 400 });
   }
 
   const userPrompt = body.instruction?.trim() ?? "";
   if (!userPrompt) {
-    telemetry.captureError(traceId, "Expected non-empty instruction string", {
-      stage: "request_validate",
-    });
-    telemetry.finishTrace(traceId, "error", { stage: "request_validate" });
+    const failed = failTrace(
+      trace,
+      "request_validate",
+      "Expected non-empty instruction string",
+    );
     return NextResponse.json(
-      { error: "Expected non-empty instruction string" },
+      { error: failed.error },
       { status: 400 },
     );
   }
@@ -110,8 +100,7 @@ export async function POST(req: Request) {
         : e instanceof Error
           ? e.message
           : "Model resolution failed";
-    telemetry.captureError(traceId, msg, { stage: "model_selection" });
-    telemetry.finishTrace(traceId, "error", { stage: "model_selection" });
+    failTrace(trace, "model_selection", msg);
     return NextResponse.json({ error: msg }, { status: 503 });
   }
   telemetry.recordModelEvent(traceId, {

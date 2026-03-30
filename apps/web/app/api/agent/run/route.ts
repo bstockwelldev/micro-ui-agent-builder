@@ -3,7 +3,6 @@ import {
   streamText,
   type UIMessage,
 } from "ai";
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { buildToolSetForAgentRun } from "@/lib/server/agent-tools";
@@ -27,14 +26,14 @@ import { estimateUsdFromUsage } from "@/lib/server/estimate-llm-spend";
 import { appendRunAnalyticsRecord } from "@/lib/server/run-analytics-store";
 import { RUN_ANALYTICS_V1 } from "@/lib/server/run-analytics-types";
 import { requireLangfuseEnvIfEnabled } from "@/lib/server/langfuse-env";
-import { getServerTelemetry } from "@/lib/server/telemetry/noop";
+import { wrapToolsWithTelemetry } from "@/lib/server/telemetry/tool-wrap";
+import { beginRouteTrace, failTrace } from "@/lib/server/telemetry/with-trace";
 import {
   getAgentById,
   getFlowById,
   readStudioStore,
 } from "@/lib/server/studio-store";
 import type { FlowStep } from "@repo/shared";
-import type { ToolSet } from "ai";
 
 export const maxDuration = 60;
 
@@ -62,16 +61,8 @@ function maxStepsForPrimaryStep(step: FlowStep | undefined): number | undefined 
 }
 
 export async function POST(req: Request) {
-  const traceId = req.headers.get("x-trace-id")?.trim() || randomUUID();
-  const runId = randomUUID();
-  const telemetry = getServerTelemetry();
-  telemetry.startTrace({
-    traceId,
-    kind: "agent_run",
-    flowId: null,
-    agentId: null,
-    runId,
-  });
+  const trace = beginRouteTrace(req, "agent_run");
+  const { telemetry, traceId, runId } = trace;
 
   try {
     requireLangfuseEnvIfEnabled();
@@ -83,9 +74,8 @@ export async function POST(req: Request) {
 
   const envMissing = missingProviderMessage();
   if (envMissing) {
-    telemetry.captureError(traceId, envMissing, { stage: "provider_precheck" });
-    telemetry.finishTrace(traceId, "error", { stage: "provider_precheck" });
-    return NextResponse.json({ error: envMissing }, { status: 503 });
+    const failed = failTrace(trace, "provider_precheck", envMissing);
+    return NextResponse.json({ error: failed.error }, { status: 503 });
   }
 
   let body: {
@@ -99,18 +89,14 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    telemetry.captureError(traceId, "Invalid JSON body", { stage: "request_parse" });
-    telemetry.finishTrace(traceId, "error", { stage: "request_parse" });
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const failed = failTrace(trace, "request_parse", "Invalid JSON body");
+    return NextResponse.json({ error: failed.error }, { status: 400 });
   }
 
   const messages = body.messages;
   if (!Array.isArray(messages)) {
-    telemetry.captureError(traceId, "Expected messages array", {
-      stage: "request_validate",
-    });
-    telemetry.finishTrace(traceId, "error", { stage: "request_validate" });
-    return NextResponse.json({ error: "Expected messages array" }, { status: 400 });
+    const failed = failTrace(trace, "request_validate", "Expected messages array");
+    return NextResponse.json({ error: failed.error }, { status: 400 });
   }
 
   const store = await readStudioStore();
@@ -127,14 +113,7 @@ export async function POST(req: Request) {
     messages,
   });
   if (preflight) {
-    telemetry.captureError(traceId, preflight.message, {
-      stage: "preflight",
-      code: preflight.code,
-    });
-    telemetry.finishTrace(traceId, "error", {
-      stage: "preflight",
-      code: preflight.code,
-    });
+    failTrace(trace, "preflight", preflight.message);
     return NextResponse.json(
       { error: preflight.message, code: preflight.code, details: preflight.details },
       { status: 400 },
@@ -193,8 +172,7 @@ export async function POST(req: Request) {
         : e instanceof Error
           ? e.message
           : "Model resolution failed";
-    telemetry.captureError(traceId, msg, { stage: "model_selection" });
-    telemetry.finishTrace(traceId, "error", { stage: "model_selection" });
+    failTrace(trace, "model_selection", msg);
     return NextResponse.json({ error: msg }, { status: 503 });
   }
   telemetry.recordModelEvent(traceId, {
@@ -216,39 +194,7 @@ export async function POST(req: Request) {
     modelRef: modelRef ?? null,
   });
 
-  const wrappedTools: ToolSet = Object.fromEntries(
-    Object.entries(tools).map(([toolName, toolDef]) => {
-      if (!toolDef || typeof toolDef !== "object" || !("execute" in toolDef)) {
-        return [toolName, toolDef];
-      }
-      const execute = (toolDef as { execute?: unknown }).execute;
-      if (typeof execute !== "function") return [toolName, toolDef];
-      const wrapped = async (...args: unknown[]) => {
-        telemetry.recordToolEvent(traceId, {
-          phase: "tool_call_start",
-          toolName,
-        });
-        try {
-          const value = await execute(...args);
-          telemetry.recordToolEvent(traceId, {
-            phase: "tool_call_finish",
-            toolName,
-          });
-          return value;
-        } catch (error) {
-          telemetry.recordToolEvent(traceId, {
-            phase: "tool_call_error",
-            toolName,
-            metadata: {
-              error: error instanceof Error ? error.message : String(error),
-            },
-          });
-          throw error;
-        }
-      };
-      return [toolName, { ...toolDef, execute: wrapped }];
-    }),
-  );
+  const wrappedTools = wrapToolsWithTelemetry(tools, telemetry, traceId);
 
   const result = streamText({
     model: resolved.model,

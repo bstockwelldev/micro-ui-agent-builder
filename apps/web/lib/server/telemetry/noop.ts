@@ -65,9 +65,3 @@ export function createConsoleTelemetry(): ServerTelemetry {
     },
   };
 }
-
-export function getServerTelemetry(): ServerTelemetry {
-  return process.env.LANGFUSE_TRACING_ENABLED === "true"
-    ? createConsoleTelemetry()
-    : createNoopTelemetry();
-}
