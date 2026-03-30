@@ -129,11 +129,32 @@ RLS is expected to block `anon` / `authenticated` on `agent_builder` tables; the
 
 ### Orchestration runtime (optional, server-only)
 
-| Variable | Notes |
-|----------|--------|
-| `ORCHESTRATION_BACKEND` | `ai_sdk` (default, current executor) or `langgraph` |
-| `LANGGRAPH_API_URL` | Required when `ORCHESTRATION_BACKEND=langgraph` |
-| `LANGGRAPH_API_KEY` | **Server-only**. Required when `ORCHESTRATION_BACKEND=langgraph` |
+#### Orchestration flags — single source of truth
+
+| Variable | Allowed values | Purpose | Current effect |
+|----------|----------------|---------|----------------|
+| `ORCHESTRATION_BACKEND` | `ai_sdk` (default), `langgraph` | Runtime config gate for route execution backend selection. | `ai_sdk` executes via current AI SDK path. `langgraph` is currently **fail-closed** for route execution until a LangGraph executor is shipped. |
+| `AGENT_ORCHESTRATION_EXECUTOR` | `current-ai-sdk` (default), `next-ai-sdk` | Internal executor selector used by orchestration resolver. | Both values currently resolve to the same `CurrentAiSdkOrchestrationExecutor` implementation (AI SDK executor contract parity flag). |
+| `LANGGRAPH_API_URL` | non-empty URL | LangGraph endpoint for remote execution. | Required when `ORCHESTRATION_BACKEND=langgraph`; missing value fails closed. |
+| `LANGGRAPH_API_KEY` | non-empty secret | LangGraph auth for remote execution. | Required when `ORCHESTRATION_BACKEND=langgraph`; missing value fails closed. |
+
+**Precedence note**
+
+1. `ORCHESTRATION_BACKEND` is evaluated first and gates route backend eligibility.
+2. `AGENT_ORCHESTRATION_EXECUTOR` is only relevant when backend resolution stays on the AI SDK path.
+3. If backend resolution is `langgraph` before LangGraph executor support exists (or required LangGraph env is missing), startup/request execution fails closed; executor selector does not override that gate.
+
+**Startup behavior examples (missing/invalid values)**
+
+- `ORCHESTRATION_BACKEND` unset → defaults to `ai_sdk`; runtime uses AI SDK execution path.
+- `ORCHESTRATION_BACKEND=invalid` → runtime rejects backend config (503 fail-closed) with remediation guidance.
+- `ORCHESTRATION_BACKEND=langgraph` with missing `LANGGRAPH_API_URL` or `LANGGRAPH_API_KEY` → fail-closed (503) with explicit missing-variable guidance.
+- `AGENT_ORCHESTRATION_EXECUTOR` unset → defaults to `current-ai-sdk`.
+- `AGENT_ORCHESTRATION_EXECUTOR=unknown` with `ORCHESTRATION_BACKEND=ai_sdk` → resolver falls back to `current-ai-sdk`.
+
+**Migration note (when `langgraph-executor.ts` is introduced)**
+
+- After `apps/web/lib/server/orchestration/langgraph-executor.ts` is added, update this table so `ORCHESTRATION_BACKEND=langgraph` maps to the real executor path, document any new `AGENT_ORCHESTRATION_EXECUTOR` values, and keep `ai_sdk` as rollback target until parity checks pass.
 
 ### Telemetry runtime (optional, server-only)
 
@@ -156,7 +177,7 @@ Production-safe defaults are now **`ORCHESTRATION_BACKEND=ai_sdk`** and **`TELEM
 2. Verify `GET /api/runtime/health` returns `ok: true` before enabling optional providers.
 3. If enabling Langfuse, set `TELEMETRY_PROVIDER=langfuse` plus `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`.
 4. Restart deployment and verify traces are arriving.
-5. Keep `ORCHESTRATION_BACKEND=ai_sdk` until LangGraph executor code is deployed.
+5. Keep `ORCHESTRATION_BACKEND=ai_sdk` until `apps/web/lib/server/orchestration/langgraph-executor.ts` is deployed and validated.
 6. Only then set `ORCHESTRATION_BACKEND=langgraph` with `LANGGRAPH_API_URL` and `LANGGRAPH_API_KEY`.
 
 ### Rollback sequence
@@ -168,6 +189,7 @@ Production-safe defaults are now **`ORCHESTRATION_BACKEND=ai_sdk`** and **`TELEM
 ### Guardrail behavior
 
 - Invalid enum values (for `ORCHESTRATION_BACKEND` or `TELEMETRY_PROVIDER`) fail with explicit 503 errors.
+- Invalid/missing orchestration flag combinations should be interpreted using the single-source-of-truth table above.
 - `langgraph` backend without `LANGGRAPH_API_URL` + `LANGGRAPH_API_KEY` fails closed with remediation guidance.
 - `langfuse` telemetry without required keys fails closed with remediation guidance.
 - Conflict (`LANGFUSE_TRACING_ENABLED=true` + `TELEMETRY_PROVIDER=noop`) fails closed with a corrective message.

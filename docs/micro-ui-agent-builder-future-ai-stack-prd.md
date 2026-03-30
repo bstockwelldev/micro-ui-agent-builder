@@ -57,6 +57,33 @@
 
 ## 3) Current implementation status
 
+### Orchestration flags — single source of truth
+
+| Variable | Allowed values | Purpose | Current effect |
+|----------|----------------|---------|----------------|
+| `ORCHESTRATION_BACKEND` | `ai_sdk` (default), `langgraph` | Runtime config gate for route execution backend selection. | `ai_sdk` executes via current AI SDK path. `langgraph` is currently **fail-closed** for route execution until a LangGraph executor is shipped. |
+| `AGENT_ORCHESTRATION_EXECUTOR` | `current-ai-sdk` (default), `next-ai-sdk` | Internal executor selector used by orchestration resolver. | Both values currently resolve to the same `CurrentAiSdkOrchestrationExecutor` implementation (AI SDK executor contract parity flag). |
+| `LANGGRAPH_API_URL` | non-empty URL | LangGraph endpoint for remote execution. | Required when `ORCHESTRATION_BACKEND=langgraph`; missing value fails closed. |
+| `LANGGRAPH_API_KEY` | non-empty secret | LangGraph auth for remote execution. | Required when `ORCHESTRATION_BACKEND=langgraph`; missing value fails closed. |
+
+**Precedence note**
+
+1. `ORCHESTRATION_BACKEND` is evaluated first and gates route backend eligibility.
+2. `AGENT_ORCHESTRATION_EXECUTOR` is only relevant when backend resolution stays on the AI SDK path.
+3. If backend resolution is `langgraph` before LangGraph executor support exists (or required LangGraph env is missing), startup/request execution fails closed; executor selector does not override that gate.
+
+**Startup behavior examples (missing/invalid values)**
+
+- `ORCHESTRATION_BACKEND` unset → defaults to `ai_sdk`; runtime uses AI SDK execution path.
+- `ORCHESTRATION_BACKEND=invalid` → runtime rejects backend config (503 fail-closed) with remediation guidance.
+- `ORCHESTRATION_BACKEND=langgraph` with missing `LANGGRAPH_API_URL` or `LANGGRAPH_API_KEY` → fail-closed (503) with explicit missing-variable guidance.
+- `AGENT_ORCHESTRATION_EXECUTOR` unset → defaults to `current-ai-sdk`.
+- `AGENT_ORCHESTRATION_EXECUTOR=unknown` with `ORCHESTRATION_BACKEND=ai_sdk` → resolver falls back to `current-ai-sdk`.
+
+**Migration note (when `langgraph-executor.ts` is introduced)**
+
+- After `apps/web/lib/server/orchestration/langgraph-executor.ts` is added, update this table so `ORCHESTRATION_BACKEND=langgraph` maps to the real executor path, document any new `AGENT_ORCHESTRATION_EXECUTOR` values, and keep `ai_sdk` as rollback target until parity checks pass.
+
 ### Workstream status snapshot
 
 - **WS-01 — Orchestration abstraction and parity harness: Implemented**
@@ -64,7 +91,7 @@
     - `apps/web/lib/server/orchestration/executor.ts`
     - `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`
 - **WS-02 — LangGraph execution backend: Pending**
-  - `apps/web/lib/server/orchestration/langgraph-executor.ts` does **not** exist yet.
+  - `apps/web/lib/server/orchestration/langgraph-executor.ts` does **not** exist yet (therefore `ORCHESTRATION_BACKEND=langgraph` remains fail-closed by design).
 - **WS-03 — Langfuse telemetry backend: Implemented**
   - Implemented telemetry abstraction/provider stack in:
     - `apps/web/lib/server/telemetry/types.ts`
