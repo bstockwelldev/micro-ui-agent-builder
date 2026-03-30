@@ -26,6 +26,7 @@ import { mergeAgentProfileIntoSystemPrompt } from "@/lib/server/agent-system-app
 import { estimateUsdFromUsage } from "@/lib/server/estimate-llm-spend";
 import { appendRunAnalyticsRecord } from "@/lib/server/run-analytics-store";
 import { RUN_ANALYTICS_V1 } from "@/lib/server/run-analytics-types";
+import { requireLangfuseEnvIfEnabled } from "@/lib/server/langfuse-env";
 import {
   getAgentById,
   getFlowById,
@@ -59,6 +60,14 @@ function maxStepsForPrimaryStep(step: FlowStep | undefined): number | undefined 
 }
 
 export async function POST(req: Request) {
+  try {
+    requireLangfuseEnvIfEnabled();
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Invalid Langfuse configuration.";
+    return NextResponse.json({ error: message }, { status: 503 });
+  }
+
   const envMissing = missingProviderMessage();
   if (envMissing) {
     return NextResponse.json({ error: envMissing }, { status: 503 });
