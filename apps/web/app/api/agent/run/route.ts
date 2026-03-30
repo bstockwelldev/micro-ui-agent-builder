@@ -27,12 +27,14 @@ import { estimateUsdFromUsage } from "@/lib/server/estimate-llm-spend";
 import { appendRunAnalyticsRecord } from "@/lib/server/run-analytics-store";
 import { RUN_ANALYTICS_V1 } from "@/lib/server/run-analytics-types";
 import { requireLangfuseEnvIfEnabled } from "@/lib/server/langfuse-env";
+import { getServerTelemetry } from "@/lib/server/telemetry/noop";
 import {
   getAgentById,
   getFlowById,
   readStudioStore,
 } from "@/lib/server/studio-store";
 import type { FlowStep } from "@repo/shared";
+import type { ToolSet } from "ai";
 
 export const maxDuration = 60;
 
@@ -60,6 +62,17 @@ function maxStepsForPrimaryStep(step: FlowStep | undefined): number | undefined 
 }
 
 export async function POST(req: Request) {
+  const traceId = req.headers.get("x-trace-id")?.trim() || randomUUID();
+  const runId = randomUUID();
+  const telemetry = getServerTelemetry();
+  telemetry.startTrace({
+    traceId,
+    kind: "agent_run",
+    flowId: null,
+    agentId: null,
+    runId,
+  });
+
   try {
     requireLangfuseEnvIfEnabled();
   } catch (error) {
@@ -70,6 +83,8 @@ export async function POST(req: Request) {
 
   const envMissing = missingProviderMessage();
   if (envMissing) {
+    telemetry.captureError(traceId, envMissing, { stage: "provider_precheck" });
+    telemetry.finishTrace(traceId, "error", { stage: "provider_precheck" });
     return NextResponse.json({ error: envMissing }, { status: 503 });
   }
 
@@ -84,11 +99,17 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
+    telemetry.captureError(traceId, "Invalid JSON body", { stage: "request_parse" });
+    telemetry.finishTrace(traceId, "error", { stage: "request_parse" });
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const messages = body.messages;
   if (!Array.isArray(messages)) {
+    telemetry.captureError(traceId, "Expected messages array", {
+      stage: "request_validate",
+    });
+    telemetry.finishTrace(traceId, "error", { stage: "request_validate" });
     return NextResponse.json({ error: "Expected messages array" }, { status: 400 });
   }
 
@@ -106,6 +127,14 @@ export async function POST(req: Request) {
     messages,
   });
   if (preflight) {
+    telemetry.captureError(traceId, preflight.message, {
+      stage: "preflight",
+      code: preflight.code,
+    });
+    telemetry.finishTrace(traceId, "error", {
+      stage: "preflight",
+      code: preflight.code,
+    });
     return NextResponse.json(
       { error: preflight.message, code: preflight.code, details: preflight.details },
       { status: 400 },
@@ -131,6 +160,14 @@ export async function POST(req: Request) {
   const primaryStep = firstPrimaryModelStep(flow?.steps);
   const modelRef = primaryStep?.model;
   const maxSteps = maxStepsForPrimaryStep(primaryStep);
+  telemetry.recordModelEvent(traceId, {
+    phase: "preflight",
+    modelRef: modelRef ?? null,
+    metadata: {
+      hasKnowledgeBase: Boolean(flow?.knowledgeBaseEnabled),
+      toolCount: Object.keys(tools).length,
+    },
+  });
 
   let resolved;
   try {
@@ -156,22 +193,68 @@ export async function POST(req: Request) {
         : e instanceof Error
           ? e.message
           : "Model resolution failed";
+    telemetry.captureError(traceId, msg, { stage: "model_selection" });
+    telemetry.finishTrace(traceId, "error", { stage: "model_selection" });
     return NextResponse.json({ error: msg }, { status: 503 });
   }
+  telemetry.recordModelEvent(traceId, {
+    phase: "model_selection",
+    providerLabel: resolved.providerLabel,
+    modelRef: modelRef ?? null,
+    fallbackProviderLabel: resolved.fallbackLabel ?? null,
+  });
 
   const coreMessages = await convertToModelMessages(messages, {
     tools,
     ignoreIncompleteToolCalls: true,
   });
 
-  const runId = randomUUID();
   const t0 = Date.now();
+  telemetry.recordModelEvent(traceId, {
+    phase: "generation_start",
+    providerLabel: resolved.providerLabel,
+    modelRef: modelRef ?? null,
+  });
+
+  const wrappedTools: ToolSet = Object.fromEntries(
+    Object.entries(tools).map(([toolName, toolDef]) => {
+      if (!toolDef || typeof toolDef !== "object" || !("execute" in toolDef)) {
+        return [toolName, toolDef];
+      }
+      const execute = (toolDef as { execute?: unknown }).execute;
+      if (typeof execute !== "function") return [toolName, toolDef];
+      const wrapped = async (...args: unknown[]) => {
+        telemetry.recordToolEvent(traceId, {
+          phase: "tool_call_start",
+          toolName,
+        });
+        try {
+          const value = await execute(...args);
+          telemetry.recordToolEvent(traceId, {
+            phase: "tool_call_finish",
+            toolName,
+          });
+          return value;
+        } catch (error) {
+          telemetry.recordToolEvent(traceId, {
+            phase: "tool_call_error",
+            toolName,
+            metadata: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          });
+          throw error;
+        }
+      };
+      return [toolName, { ...toolDef, execute: wrapped }];
+    }),
+  );
 
   const result = streamText({
     model: resolved.model,
     system,
     messages: coreMessages,
-    tools: Object.keys(tools).length > 0 ? tools : undefined,
+    tools: Object.keys(wrappedTools).length > 0 ? wrappedTools : undefined,
     temperature: primaryStep?.temperature,
     maxOutputTokens: primaryStep?.maxTokens,
     topP: primaryStep?.topP,
@@ -192,9 +275,17 @@ export async function POST(req: Request) {
         totalTokens,
       });
 
+      telemetry.recordModelEvent(traceId, {
+        phase: "generation_finish",
+        providerLabel: resolved.providerLabel,
+        modelRef: modelRef ?? null,
+        finishReason: String(event.finishReason ?? ""),
+        usage,
+      });
       console.log(
         JSON.stringify({
           event: "agent_run_finish",
+          traceId,
           runId,
           flowId: body.flowId ?? null,
           agentId: body.agentId ?? null,
@@ -223,8 +314,18 @@ export async function POST(req: Request) {
       }).catch((err) => {
         console.error("[run-analytics] append failed", err);
       });
+      telemetry.finishTrace(traceId, "ok", {
+        durationMs: Date.now() - t0,
+      });
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    headers: {
+      "x-trace-id": traceId,
+    },
+    messageMetadata: () => ({
+      traceId,
+    }),
+  });
 }
