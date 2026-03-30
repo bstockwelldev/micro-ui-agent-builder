@@ -17,6 +17,7 @@ import {
   type ResolvedLanguageModel,
 } from "@/lib/server/language-model";
 import { mergeAgentProfileIntoSystemPrompt } from "@/lib/server/agent-system-appendix";
+import { requireLangfuseEnvIfEnabled } from "@/lib/server/langfuse-env";
 import {
   getAgentById,
   getFlowById,
@@ -26,6 +27,14 @@ import {
 const genuiSystemExtra = `You also emit a small JSON UI tree (GenUI) that matches the schema: a single root node with type Stack, Text, Button, Card, or FormField. Use Stack to group children. Keep the tree shallow (2–4 levels) for demos.`;
 
 export async function POST(req: Request) {
+  try {
+    requireLangfuseEnvIfEnabled();
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Invalid Langfuse configuration.";
+    return NextResponse.json({ error: message }, { status: 503 });
+  }
+
   const envMissing = missingProviderMessage();
   if (envMissing) {
     return NextResponse.json({ error: envMissing }, { status: 503 });

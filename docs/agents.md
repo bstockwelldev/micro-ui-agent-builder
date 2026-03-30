@@ -130,6 +130,7 @@ RLS is expected to block `anon` / `authenticated` on `agent_builder` tables; the
 
 | Variable | Notes |
 |----------|--------|
+| `LANGFUSE_TRACING_ENABLED` | Optional boolean toggle (`true/false`); when true, route handlers validate Langfuse keys at request start |
 | `LANGFUSE_PUBLIC_KEY` | Langfuse project public key for trace ingestion |
 | `LANGFUSE_SECRET_KEY` | **Server-only** secret for Langfuse SDK authentication |
 | `LANGFUSE_BASEURL` | Optional API base URL (defaults to `https://cloud.langfuse.com`) |

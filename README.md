@@ -40,6 +40,10 @@ Optional Supabase (same project as **Tabletop Studio**): set **`NEXT_PUBLIC_SUPA
 
 Full variable matrix and behavior: **[docs/agents.md#environment-variables](docs/agents.md#environment-variables)**.
 
+### Telemetry providers
+
+Langfuse tracing is server-only and opt-in. Use **`LANGFUSE_TRACING_ENABLED=true`** only when **`LANGFUSE_PUBLIC_KEY`** and **`LANGFUSE_SECRET_KEY`** are set (optional **`LANGFUSE_BASEURL`**). Canonical variable definitions live in **`apps/web/.env.example`** and **[docs/agents.md#langfuse-tracing-optional-server-only](docs/agents.md#langfuse-tracing-optional-server-only)**.
+
 ## Data / persistence
 
 **With Supabase env vars set:** studio state is stored in **`agent_builder.studio_snapshots`** (durable, shared across instances).
