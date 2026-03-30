@@ -175,6 +175,7 @@ Production-safe defaults are now **`ORCHESTRATION_BACKEND=ai_sdk`** and **`TELEM
 
 1. Deploy with defaults (no new flags) and confirm `/api/agent/run` + `/api/agent/genui` are healthy.
 2. Verify `GET /api/runtime/health` returns `ok: true` before enabling optional providers.
+   - Example success/failure payloads: [PRD Appendix A](./micro-ui-agent-builder-future-ai-stack-prd.md#appendix-a-get-apiruntimehealth-response-payloads).
 3. If enabling Langfuse, set `TELEMETRY_PROVIDER=langfuse` plus `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`.
 4. Restart deployment and verify traces are arriving.
 5. Keep `ORCHESTRATION_BACKEND=ai_sdk` until `apps/web/lib/server/orchestration/langgraph-executor.ts` is deployed and validated.
@@ -185,6 +186,7 @@ Production-safe defaults are now **`ORCHESTRATION_BACKEND=ai_sdk`** and **`TELEM
 1. On elevated errors, set `ORCHESTRATION_BACKEND=ai_sdk` immediately.
 2. If telemetry causes failures, set `TELEMETRY_PROVIDER=noop`.
 3. Redeploy/restart and validate API health checks.
+   - Failure payload examples and one-line remediations: [PRD Appendix A](./micro-ui-agent-builder-future-ai-stack-prd.md#appendix-a-get-apiruntimehealth-response-payloads).
 
 ### Guardrail behavior
 
