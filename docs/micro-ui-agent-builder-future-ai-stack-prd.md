@@ -55,7 +55,30 @@
   - `/api/agent/genui` (`instruction`, `flowId?`, `agentId?`)
 - Add optional metadata fields only when strictly additive (e.g., `orchestrationVersion`, `traceId`) and keep clients tolerant.
 
-## 3) Change-set plan with workstreams
+## 3) Current implementation status
+
+### Workstream status snapshot
+
+- **WS-01 — Orchestration abstraction and parity harness: Implemented**
+  - Implemented orchestration resolver and runtime abstraction in:
+    - `apps/web/lib/server/orchestration/executor.ts`
+    - `apps/web/lib/server/orchestration/current-ai-sdk-executor.ts`
+- **WS-02 — LangGraph execution backend: Pending**
+  - `apps/web/lib/server/orchestration/langgraph-executor.ts` does **not** exist yet.
+- **WS-03 — Langfuse telemetry backend: Implemented**
+  - Implemented telemetry abstraction/provider stack in:
+    - `apps/web/lib/server/telemetry/types.ts`
+    - `apps/web/lib/server/telemetry/provider.ts`
+    - `apps/web/lib/server/telemetry/noop.ts`
+    - `apps/web/lib/server/telemetry/langfuse.ts`
+    - `apps/web/lib/server/telemetry/with-trace.ts`
+    - `apps/web/lib/server/telemetry/tool-wrap.ts`
+  - Runtime health endpoint present at:
+    - `apps/web/app/api/runtime/health/route.ts`
+- **WS-04 — Progressive rollout + fallback controls: In progress**
+- **WS-05 — QA, reliability, and deployment hardening: In progress**
+
+## 4) Change-set plan with workstreams
 
 ### WS-01 — Orchestration abstraction and parity harness
 
@@ -90,7 +113,7 @@ flowchart TD
   WS04 --> WS05[WS-05 QA + Deploy Hardening]
 ```
 
-## 4) Executable task stubs
+## 5) Executable task stubs
 
 :::task-stub{title="micro-ui-agent-builder-FutureAIStack-WS01-OrchestrationInterface"}
 1. Create `apps/web/lib/server/orchestration/types.ts` with route-facing request/response contracts.
@@ -126,16 +149,23 @@ flowchart TD
 4. Produce release checklist and post-deploy verification steps.
 :::
 
-## 5) Acceptance criteria
+## 6) Acceptance criteria
+
+### Met now
 
 - **AC-01:** Existing Run chat UX streams responses and tool calls without front-end API contract changes.
 - **AC-02:** GenUI route still validates against shared schema and returns same top-level JSON envelope.
-- **AC-03:** LangGraph executor can be enabled/disabled by configuration with deterministic fallback.
 - **AC-04:** Langfuse telemetry can be enabled/disabled by configuration with no impact when disabled.
 - **AC-05:** Existing analytics JSONL pipeline remains functional during migration.
-- **AC-06:** Root quality gates pass in CI and local dev.
 
-## 6) Risks and mitigations
+### Blocked / pending
+
+- **AC-03:** LangGraph executor can be enabled/disabled by configuration with deterministic fallback.  
+  _Blocked pending WS-02 implementation; `apps/web/lib/server/orchestration/langgraph-executor.ts` is not present yet._
+- **AC-06:** Root quality gates pass in CI and local dev.  
+  _Pending full migration completion and verification run for all workstreams._
+
+## 7) Risks and mitigations
 
 - **Risk:** Streaming semantics diverge between current direct `streamText` and LangGraph runner.
   - **Mitigation:** WS-01 parity harness + golden route fixtures before enabling WS-02 by default.
@@ -144,21 +174,21 @@ flowchart TD
 - **Risk:** Tool approval or MCP tool naming behavior regresses.
   - **Mitigation:** preserve existing tool name normalization and approval event payload contracts.
 
-## 7) Test-first rollout matrix
+## 8) Test-first rollout matrix
 
 - **Pre-change baseline tests:** snapshot current route behavior (success, preflight fail, provider fail, tool output).
 - **Migration tests:** run same fixtures with LangGraph executor and compare envelope + error shape.
 - **Regression tests:** verify existing dashboards still compute from JSONL analytics records.
 - **Deployment tests:** Vercel preview with and without Supabase; ensure no server secret leaks to client bundle.
 
-## 8) Improvement proposal backlog (grounded)
+## 9) Improvement proposal backlog (grounded)
 
 - `#refactor` Extract route runtime internals into server services to reduce `route.ts` complexity and improve testability.
 - `#tech-debt` Replace ad-hoc `console.log` events with structured telemetry adapter events to align analytics + tracing.
 - `#upkeep` Consolidate provider/env capability checks into a single documented configuration contract.
 - `#other` Add explicit orchestration state schema for run lifecycle transitions (queued, preflight, model, tool, complete, failed).
 
-## 9) Open questions (required before implementation)
+## 10) Open questions (required before implementation)
 
 1. Should LangGraph be the default executor immediately after parity, or staged by environment (dev/staging/prod)?
 2. Is Langfuse self-hosted or cloud, and what data retention/privacy constraints apply to prompt/tool payload capture?
