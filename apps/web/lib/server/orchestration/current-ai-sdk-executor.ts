@@ -4,7 +4,6 @@ import {
   streamText,
   type UIMessage,
 } from "ai";
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { genuiSurfaceSchema, type FlowStep } from "@repo/shared";
@@ -34,6 +33,9 @@ import {
 } from "@/lib/server/language-model";
 import { appendRunAnalyticsRecord } from "@/lib/server/run-analytics-store";
 import { RUN_ANALYTICS_V1 } from "@/lib/server/run-analytics-types";
+import { requireAiSdkExecutorForRoute } from "@/lib/server/runtime-config";
+import { wrapToolsWithTelemetry } from "@/lib/server/telemetry/tool-wrap";
+import { beginRouteTrace, failTrace } from "@/lib/server/telemetry/with-trace";
 import {
   getAgentById,
   getFlowById,
@@ -74,6 +76,17 @@ export class CurrentAiSdkOrchestrationExecutor
   implements OrchestrationRouteExecutor
 {
   async executeRun(req: Request): Promise<Response> {
+    const trace = beginRouteTrace(req, "agent_run");
+    const { telemetry, traceId, runId } = trace;
+
+    try {
+      requireAiSdkExecutorForRoute();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Invalid server runtime configuration.";
+      return NextResponse.json({ error: message }, { status: 503 });
+    }
+
     try {
       requireLangfuseEnvIfEnabled();
     } catch (error) {
@@ -84,22 +97,22 @@ export class CurrentAiSdkOrchestrationExecutor
 
     const envMissing = missingProviderMessage();
     if (envMissing) {
-      return NextResponse.json({ error: envMissing }, { status: 503 });
+      const failed = failTrace(trace, "provider_precheck", envMissing);
+      return NextResponse.json({ error: failed.error }, { status: 503 });
     }
 
     let body: RunExecutorRequestBody;
     try {
       body = await req.json();
     } catch {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      const failed = failTrace(trace, "request_parse", "Invalid JSON body");
+      return NextResponse.json({ error: failed.error }, { status: 400 });
     }
 
     const messages = body.messages;
     if (!Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: "Expected messages array" },
-        { status: 400 },
-      );
+      const failed = failTrace(trace, "request_validate", "Expected messages array");
+      return NextResponse.json({ error: failed.error }, { status: 400 });
     }
 
     const store = await readStudioStore();
@@ -116,6 +129,7 @@ export class CurrentAiSdkOrchestrationExecutor
       messages,
     });
     if (preflight) {
+      failTrace(trace, "preflight", preflight.message);
       return NextResponse.json(
         { error: preflight.message, code: preflight.code, details: preflight.details },
         { status: 400 },
@@ -141,6 +155,14 @@ export class CurrentAiSdkOrchestrationExecutor
     const primaryStep = firstPrimaryModelStep(flow?.steps);
     const modelRef = primaryStep?.model;
     const maxSteps = maxStepsForPrimaryStep(primaryStep);
+    telemetry.recordModelEvent(traceId, {
+      phase: "preflight",
+      modelRef: modelRef ?? null,
+      metadata: {
+        hasKnowledgeBase: Boolean(flow?.knowledgeBaseEnabled),
+        toolCount: Object.keys(tools).length,
+      },
+    });
 
     let resolved;
     try {
@@ -166,22 +188,35 @@ export class CurrentAiSdkOrchestrationExecutor
           : e instanceof Error
             ? e.message
             : "Model resolution failed";
+      failTrace(trace, "model_selection", msg);
       return NextResponse.json({ error: msg }, { status: 503 });
     }
+    telemetry.recordModelEvent(traceId, {
+      phase: "model_selection",
+      providerLabel: resolved.providerLabel,
+      modelRef: modelRef ?? null,
+      fallbackProviderLabel: resolved.fallbackLabel ?? null,
+    });
 
     const coreMessages = await convertToModelMessages(messages as UIMessage[], {
       tools,
       ignoreIncompleteToolCalls: true,
     });
 
-    const runId = randomUUID();
     const t0 = Date.now();
+    telemetry.recordModelEvent(traceId, {
+      phase: "generation_start",
+      providerLabel: resolved.providerLabel,
+      modelRef: modelRef ?? null,
+    });
+
+    const wrappedTools = wrapToolsWithTelemetry(tools, telemetry, traceId);
 
     const result = streamText({
       model: resolved.model,
       system,
       messages: coreMessages,
-      tools: Object.keys(tools).length > 0 ? tools : undefined,
+      tools: Object.keys(wrappedTools).length > 0 ? wrappedTools : undefined,
       temperature: primaryStep?.temperature,
       maxOutputTokens: primaryStep?.maxTokens,
       topP: primaryStep?.topP,
@@ -191,7 +226,8 @@ export class CurrentAiSdkOrchestrationExecutor
         const usage = event.usage;
         const inputTokens = usage.inputTokens ?? 0;
         const outputTokens = usage.outputTokens ?? 0;
-        const totalTokens = usage.totalTokens ?? inputTokens + outputTokens;
+        const totalTokens =
+          usage.totalTokens ?? inputTokens + outputTokens;
         const modelRefForPricing = modelRef ?? "";
         const estimatedUsd = estimateUsdFromUsage({
           providerLabel: resolved.providerLabel,
@@ -201,9 +237,17 @@ export class CurrentAiSdkOrchestrationExecutor
           totalTokens,
         });
 
+        telemetry.recordModelEvent(traceId, {
+          phase: "generation_finish",
+          providerLabel: resolved.providerLabel,
+          modelRef: modelRef ?? null,
+          finishReason: String(event.finishReason ?? ""),
+          usage,
+        });
         console.log(
           JSON.stringify({
             event: "agent_run_finish",
+            traceId,
             runId,
             flowId: body.flowId ?? null,
             agentId: body.agentId ?? null,
@@ -232,13 +276,34 @@ export class CurrentAiSdkOrchestrationExecutor
         }).catch((err) => {
           console.error("[run-analytics] append failed", err);
         });
+        telemetry.finishTrace(traceId, "ok", {
+          durationMs: Date.now() - t0,
+        });
       },
     });
 
-    return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse({
+      headers: {
+        "x-trace-id": traceId,
+      },
+      messageMetadata: () => ({
+        traceId,
+      }),
+    });
   }
 
   async executeGenUi(req: Request): Promise<Response> {
+    const trace = beginRouteTrace(req, "agent_genui");
+    const { telemetry, traceId, runId } = trace;
+
+    try {
+      requireAiSdkExecutorForRoute();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Invalid server runtime configuration.";
+      return NextResponse.json({ error: message }, { status: 503 });
+    }
+
     try {
       requireLangfuseEnvIfEnabled();
     } catch (error) {
@@ -249,20 +314,27 @@ export class CurrentAiSdkOrchestrationExecutor
 
     const envMissing = missingProviderMessage();
     if (envMissing) {
-      return NextResponse.json({ error: envMissing }, { status: 503 });
+      const failed = failTrace(trace, "provider_precheck", envMissing);
+      return NextResponse.json({ error: failed.error }, { status: 503 });
     }
 
     let body: GenUiExecutorRequestBody;
     try {
       body = await req.json();
     } catch {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      const failed = failTrace(trace, "request_parse", "Invalid JSON body");
+      return NextResponse.json({ error: failed.error }, { status: 400 });
     }
 
     const userPrompt = body.instruction?.trim() ?? "";
     if (!userPrompt) {
+      const failed = failTrace(
+        trace,
+        "request_validate",
+        "Expected non-empty instruction string",
+      );
       return NextResponse.json(
-        { error: "Expected non-empty instruction string" },
+        { error: failed.error },
         { status: 400 },
       );
     }
@@ -285,6 +357,13 @@ export class CurrentAiSdkOrchestrationExecutor
     const system = `${baseSystem}\n\n${genuiSystemExtra}`;
 
     const llmStep = flow?.steps.find((s) => s.type === "llm");
+    telemetry.recordModelEvent(traceId, {
+      phase: "preflight",
+      modelRef: llmStep?.model ?? null,
+      metadata: {
+        hasKnowledgeBase: Boolean(flow?.knowledgeBaseEnabled),
+      },
+    });
     let resolved: ResolvedLanguageModel;
     try {
       resolved = resolveLanguageModel(llmStep?.model);
@@ -295,13 +374,24 @@ export class CurrentAiSdkOrchestrationExecutor
           : e instanceof Error
             ? e.message
             : "Model resolution failed";
+      failTrace(trace, "model_selection", msg);
       return NextResponse.json({ error: msg }, { status: 503 });
     }
+    telemetry.recordModelEvent(traceId, {
+      phase: "model_selection",
+      providerLabel: resolved.providerLabel,
+      modelRef: llmStep?.model ?? null,
+      fallbackProviderLabel: resolved.fallbackLabel ?? null,
+    });
 
-    const runId = randomUUID();
     const t0 = Date.now();
 
     async function run(model: typeof resolved.model, label: string) {
+      telemetry.recordModelEvent(traceId, {
+        phase: "generation_start",
+        providerLabel: label,
+        modelRef: llmStep?.model ?? null,
+      });
       const { object, usage } = await generateObject({
         model,
         schema: genuiSurfaceSchema,
@@ -311,6 +401,7 @@ export class CurrentAiSdkOrchestrationExecutor
       console.log(
         JSON.stringify({
           event: "agent_genui_finish",
+          traceId,
           runId,
           flowId: body.flowId ?? null,
           provider: label,
@@ -318,6 +409,13 @@ export class CurrentAiSdkOrchestrationExecutor
           usage,
         }),
       );
+      telemetry.recordModelEvent(traceId, {
+        phase: "generation_finish",
+        providerLabel: label,
+        modelRef: llmStep?.model ?? null,
+        usage,
+        finishReason: "stop",
+      });
       return object;
     }
 
@@ -329,55 +427,70 @@ export class CurrentAiSdkOrchestrationExecutor
 
     try {
       const object = await run(resolved.model, resolved.providerLabel);
-      return NextResponse.json({ surface: object });
+      telemetry.finishTrace(traceId, "ok", { durationMs: Date.now() - t0 });
+      return NextResponse.json({ surface: object, metadata: { traceId } });
     } catch (first) {
       if (!resolved.fallback || !resolved.fallbackLabel) {
         const ollama = extraOllamaIfNeeded();
         if (ollama) {
           try {
             const object = await run(ollama.model, ollama.providerLabel);
+            telemetry.finishTrace(traceId, "ok", { durationMs: Date.now() - t0 });
             return NextResponse.json({
               surface: object,
               usedFallback: true,
               fallbackProvider: ollama.providerLabel,
+              metadata: { traceId },
             });
           } catch (ollamaErr) {
             const message =
               ollamaErr instanceof Error
                 ? ollamaErr.message
                 : "generateObject failed";
+            telemetry.captureError(traceId, ollamaErr, { stage: "generate_fallback" });
+            telemetry.finishTrace(traceId, "error", { durationMs: Date.now() - t0 });
             return NextResponse.json({ error: message }, { status: 502 });
           }
         }
         const message =
           first instanceof Error ? first.message : "generateObject failed";
+        telemetry.captureError(traceId, first, { stage: "generate_primary" });
+        telemetry.finishTrace(traceId, "error", { durationMs: Date.now() - t0 });
         return NextResponse.json({ error: message }, { status: 502 });
       }
       try {
         const object = await run(resolved.fallback, resolved.fallbackLabel);
+        telemetry.finishTrace(traceId, "ok", { durationMs: Date.now() - t0 });
         return NextResponse.json({
           surface: object,
           usedFallback: true,
           fallbackProvider: resolved.fallbackLabel,
+          metadata: { traceId },
         });
       } catch (second) {
         const ollama = extraOllamaIfNeeded();
         if (ollama) {
           try {
             const object = await run(ollama.model, ollama.providerLabel);
+            telemetry.finishTrace(traceId, "ok", { durationMs: Date.now() - t0 });
             return NextResponse.json({
               surface: object,
               usedFallback: true,
               fallbackProvider: ollama.providerLabel,
+              metadata: { traceId },
             });
           } catch (third) {
             const message =
               third instanceof Error ? third.message : "generateObject failed";
+            telemetry.captureError(traceId, third, { stage: "generate_ollama_fallback" });
+            telemetry.finishTrace(traceId, "error", { durationMs: Date.now() - t0 });
             return NextResponse.json({ error: message }, { status: 502 });
           }
         }
         const message =
           second instanceof Error ? second.message : "generateObject failed";
+        telemetry.captureError(traceId, second, { stage: "generate_secondary_fallback" });
+        telemetry.finishTrace(traceId, "error", { durationMs: Date.now() - t0 });
         return NextResponse.json({ error: message }, { status: 502 });
       }
     }

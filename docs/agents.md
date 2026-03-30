@@ -9,6 +9,7 @@ Read this file before non-trivial work: architecture, persistence, API routes, e
 - [Entry points](#entry-points)
 - [Persistence](#persistence)
 - [Environment variables](#environment-variables)
+- [Orchestration and telemetry rollout](#orchestration-and-telemetry-rollout)
 - [API routes](#api-routes)
 - [Shared package](#shared-package)
 - [Vercel deployment](#vercel-deployment)
@@ -126,14 +127,50 @@ Canonical list: [apps/web/.env.example](../apps/web/.env.example).
 
 RLS is expected to block `anon` / `authenticated` on `agent_builder` tables; the app uses the service role for server-side studio persistence.
 
-### Langfuse tracing (optional, server-only)
+### Orchestration runtime (optional, server-only)
 
 | Variable | Notes |
 |----------|--------|
-| `LANGFUSE_TRACING_ENABLED` | Optional boolean toggle (`true/false`); when true, route handlers validate Langfuse keys at request start |
-| `LANGFUSE_PUBLIC_KEY` | Langfuse project public key for trace ingestion |
-| `LANGFUSE_SECRET_KEY` | **Server-only** secret for Langfuse SDK authentication |
+| `ORCHESTRATION_BACKEND` | `ai_sdk` (default, current executor) or `langgraph` |
+| `LANGGRAPH_API_URL` | Required when `ORCHESTRATION_BACKEND=langgraph` |
+| `LANGGRAPH_API_KEY` | **Server-only**. Required when `ORCHESTRATION_BACKEND=langgraph` |
+
+### Telemetry runtime (optional, server-only)
+
+| Variable | Notes |
+|----------|--------|
+| `TELEMETRY_PROVIDER` | `noop` (default) or `langfuse` |
+| `LANGFUSE_TRACING_ENABLED` | Legacy compatibility toggle. Prefer explicit `TELEMETRY_PROVIDER` |
+| `LANGFUSE_PUBLIC_KEY` | Required when `TELEMETRY_PROVIDER=langfuse` |
+| `LANGFUSE_SECRET_KEY` | **Server-only**. Required when `TELEMETRY_PROVIDER=langfuse` |
 | `LANGFUSE_BASEURL` | Optional API base URL (defaults to `https://cloud.langfuse.com`) |
+
+
+## Orchestration and telemetry rollout
+
+Production-safe defaults are now **`ORCHESTRATION_BACKEND=ai_sdk`** and **`TELEMETRY_PROVIDER=noop`** when variables are unset.
+
+### Rollout sequence
+
+1. Deploy with defaults (no new flags) and confirm `/api/agent/run` + `/api/agent/genui` are healthy.
+2. Verify `GET /api/runtime/health` returns `ok: true` before enabling optional providers.
+3. If enabling Langfuse, set `TELEMETRY_PROVIDER=langfuse` plus `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`.
+4. Restart deployment and verify traces are arriving.
+5. Keep `ORCHESTRATION_BACKEND=ai_sdk` until LangGraph executor code is deployed.
+6. Only then set `ORCHESTRATION_BACKEND=langgraph` with `LANGGRAPH_API_URL` and `LANGGRAPH_API_KEY`.
+
+### Rollback sequence
+
+1. On elevated errors, set `ORCHESTRATION_BACKEND=ai_sdk` immediately.
+2. If telemetry causes failures, set `TELEMETRY_PROVIDER=noop`.
+3. Redeploy/restart and validate API health checks.
+
+### Guardrail behavior
+
+- Invalid enum values (for `ORCHESTRATION_BACKEND` or `TELEMETRY_PROVIDER`) fail with explicit 503 errors.
+- `langgraph` backend without `LANGGRAPH_API_URL` + `LANGGRAPH_API_KEY` fails closed with remediation guidance.
+- `langfuse` telemetry without required keys fails closed with remediation guidance.
+- Conflict (`LANGFUSE_TRACING_ENABLED=true` + `TELEMETRY_PROVIDER=noop`) fails closed with a corrective message.
 
 ## API routes
 
@@ -145,6 +182,7 @@ RLS is expected to block `anon` / `authenticated` on `agent_builder` tables; the
 | POST | `/api/agent/genui` | Structured UI tree; body `{ instruction, flowId? }`; uses `generateObject` + shared schema |
 | POST | `/api/agent/approve` | Stub: clears `pausedRuns` session |
 | POST | `/api/mcp/proxy` | Forwards JSON to registered **http** MCP URLs; body `{ mcpServerId, request }` |
+| GET | `/api/runtime/health` | Sanitized runtime config health (`ok` + backend/provider readiness) for rollout verification |
 
 **Generative UI — two paths (both valid):**
 
