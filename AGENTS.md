@@ -5,6 +5,13 @@
 - Give AI agents and contributors **guardrails and quick orientation** without loading the full repo map here.
 - Point all **non-trivial work** to the detailed guide: **[docs/agents.md](docs/agents.md)** (persistence, APIs, Vercel, Supabase, directory map).
 
+## Minimal public-safe agent stack policy
+
+- **PP-GLOSS handoffs**: when drafting a “new chat starter” or cross-tool handoff, include a short **GLOSS** (IDs → one-line defs), **RES** (how to resolve IDs), then the task body. Keep it generic and never include secrets (env var **names** only).
+- **Prompt validation**: treat `packages/shared/src/schemas.ts` as the contract for studio store + structured outputs; prefer Zod validation at boundaries (`/api/*`, server helpers).
+- **Optional git hygiene**: use Conventional Commits if the repo already follows them; otherwise don’t introduce new commit policy.
+- **Explicitly avoid** committing tracker/workflow coupling (Linear, Jira, “change-plan” stacks) unless the user asks.
+
 ## Project snapshot
 
 | Area | Summary |
